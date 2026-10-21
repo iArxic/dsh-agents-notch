@@ -1177,7 +1177,10 @@ internal sealed class OverlayWindow : Window
             _settings = state.Settings;
             _data = Live.Build(state, null, _settings.MaxRows, IsStale(state), _settings.ShowProject);
             ApplySettings(_settings);
-            Log.Write($"seeded — {_settings}");
+            // Name the RESOLVED motion as well as the requested one: `auto` depending on a Windows
+        // setting is right, and it is also the first thing somebody asks when nothing moves.
+        Log.Write($"seeded — {_settings} motion={(_motionOff ? "off" : "on")}" +
+                  $" (auto follows Windows: {System.Windows.SystemParameters.ClientAreaAnimation})");
         }
         catch (Exception e) { Log.Write("seed failed (will poll): " + e.Message); }
     }
