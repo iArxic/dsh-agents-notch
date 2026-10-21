@@ -1,6 +1,6 @@
 {
   "name": "dsh-agents-notch",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A notch at the top of your screen that shows which DeepSeek Harness sessions are working, which need you, and which are done. Windows only.",
   "type": "module",
   "main": "./lib/host.js",

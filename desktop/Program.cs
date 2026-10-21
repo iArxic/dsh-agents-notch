@@ -221,6 +221,13 @@ internal sealed class BoardData
 
     // the front session — the big orb
     public string FrontStatus = "idle";
+    /// <summary>
+    /// The identity of the front session: id AND status. It — not the status alone — is what the
+    /// motion keys on, because switching to a DIFFERENT session in the SAME state is a transition too:
+    /// click from one finished session to another and the finish motion plays again, which is what a
+    /// human means by "show me that one". Keying on the status made every same-state switch silent.
+    /// </summary>
+    public string FrontKey = "idle";
     public Color Badge = Draw.Grey;
     public Color Identity = Draw.Teal;
 
@@ -596,6 +603,7 @@ internal static class Live
             d.Badge = ToneOf(front.Status);
             d.Identity = IdentityOf(front.Identity);
             d.FrontStatus = front.Status;
+        d.FrontKey = front.Id + "|" + front.Status;
             d.Title = front.Title.Length > 0 ? front.Title : ProjectOf(front);
             d.Sub = showProject
                 ? $"{ProjectOf(front)} · {Phrase(front.Status, Age(front.Since))}"
@@ -1833,9 +1841,12 @@ internal sealed class OverlayWindow : Window
         // transition into a settled state starts that state's motion ONCE, and the motion end in a
         // rest pose instead of looping — an overlay that keeps celebrating a session that finished
         // an hour ago is noise.
-        string front = _data.FrontStatus;
+        string front = _data.FrontKey;
         if (front != _frontWas)
         {
+            // Logged because "the animation did not play" is otherwise unanswerable from outside: this
+            // line says which transition the window actually saw, and when.
+            if (_frontWas != "") Log.Write($"pose — front {_frontWas} -> {front}");
             _frontWas = front;
             _finishStart = front == "done" ? t : -1;
             _alertStart = front == "attention" ? t : -1;
