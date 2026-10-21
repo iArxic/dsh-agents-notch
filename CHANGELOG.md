@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.3 — a Settings pane
+
+Settings → **Agents Notch** now exists, with every knob the row config has: size, anchor, display, rows,
+opacity, motion, the three text switches, and a Reset. It writes
+`state/agents-notch/settings.json`, clamped by the same rules as the YAML and beating the row; the
+window applies a change on its next tick, so nothing restarts.
+
+Why a file instead of the row itself: a browser pane cannot safely round-trip `cordis.patch.yml`, a
+file other sessions also edit, and one bad indent there takes the whole machine's configuration down.
+The pane owns one small JSON file beside the state; the row stays the human's file.
+
+Also here: the transition that drives the face motion is keyed on the front session's `id|status`
+rather than its status alone, so switching between two finished sessions replays the finish motion
+instead of nothing — and the transition is logged (`pose — front a|done -> b|done`).
+
 ## 0.1.2 — the finish animation plays when you switch to a finished session
 
 The motion keys on the front session's identity (`id|status`), not on its status alone. Switching

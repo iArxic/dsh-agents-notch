@@ -775,3 +775,27 @@ One more thing that looks like clutter and is not: the development tree kept `li
 by URL with no cache-bust, so a behavioural fix had to land as a NEW FILE plus a new row — editing
 the file a live row already points at lands nothing until the app restarts. The public package has
 one of each because it is installed fresh, not edited live.
+
+## The Settings pane — the client half
+
+Every entry in the app's Settings sidebar is a **client bundle** filling a seat called
+`settings.section`. This package had none, which is why its settings were only ever the plugin row's
+`config:` and nothing appeared in that list.
+
+The contract, copied from `roblox-workstation-ui` (the working example on this machine):
+
+- `package.json` gains `"exports": { "./client": "./lib/client.js" }` **and**
+  `"dsh": { "client": { "platform": "web" } }`. `dsh-client-modules` finds the browser half by walking
+  up from the mounted host module to that manifest; without both keys it serves nothing, silently.
+- the file is hand-written in the module-loader's bundle shape:
+  `window.__ModuleLoader__.load({ id, factory: (require) => { … return module.exports; } })`, with
+  `exports.apply` and `exports.inject = ["slots"]`. `require("react")` resolves to the shell's own
+  React, so nothing is bundled twice.
+- the seat is filled with `slots.inject("settings.section", () => slots.register({ name, id, order,
+  label, registrant }, () => h(Page, {})))`, and every disposer is handed to `ctx.effect` so unloading
+  the plugin takes the pane out again.
+- **a client bundle only reloads with a page refresh** unless the web dev watcher is running
+  (`pnpm run dev:web`), so verifying a pane always ends with the human reloading the app. That is the
+  honest limit of this half: the pane renders in their window, not in any test here.
+- the pane writes through `POST /agents-notch/settings` and trusts the answer, which is the clamped
+  value the host stored — that is what keeps the pane from showing a number the window is not using.

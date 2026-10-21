@@ -127,3 +127,31 @@ DSH host process                                  separate Windows process
   to install on a stranger's machine, and a plugin that pulls a tree is a plugin that breaks.
 - No path in this package may name this machine. The exe is found relative to the package root.
 - Tests are `node --test` files under `test/`, and they must pass with no harness running.
+
+## The Settings pane (0.1.3+)
+
+The board publishes the **effective** settings — what the window will actually use — and three layers
+decide them, each beating the one above:
+
+| layer | where | who writes it |
+|---|---|---|
+| defaults | `lib/settings-store.js` → `DEFAULTS` | nobody |
+| the plugin row | `cordis.patch.yml`, `config:` | a human |
+| the pane | `$DSH_HOME/state/agents-notch/settings.json` | the Settings pane, one click at a time |
+
+Both files go through `clampSettings`, so a slider and a YAML line behave identically, and a value the
+pane writes is stored **clamped**: the file always agrees with the window. A value that does not parse
+falls back to the layer BENEATH it — editing one slider must never undo a hand-written row.
+
+The pane cannot write the row, deliberately: rewriting `cordis.patch.yml` from a browser would
+round-trip a file other sessions also edit, and one bad indent takes the machine's configuration down.
+
+```
+GET  /agents-notch/settings   -> { ok, settings, row, stored, defaults }
+POST /agents-notch/settings   -> any of the nine keys, or { reset: true }
+```
+
+A POST is the only place in this plugin where a request changes anything, it writes one small file
+beside the state, and it refuses unknown keys **by name** rather than dropping them silently. The host
+calls its own `flush()` afterwards, so the notch applies the change on the window's next tick — no
+restart, no re-mount.

@@ -80,6 +80,22 @@ unpacks its native libraries on first run, and the plugin points that unpack at 
 rather than `%TEMP%`: measured on a normal Windows 11 box, the default unpack directory could not be
 created (error 5) and the app died before drawing anything, with no message a user would ever see.
 ## Configure
+**The notch has a pane of its own: Settings → Agents Notch.** Size, anchor, display, rows, opacity,
+motion and the three text switches live there, and a change lands on the notch immediately — the window
+re-reads its state on the next tick, so nothing restarts.
+
+Three layers decide a value, each beating the one above it:
+
+1. the built-in defaults;
+2. the plugin row's `config:` below — the file you edit, which nothing overwrites;
+3. `$DSH_HOME/state/agents-notch/settings.json`, written by the pane, one click at a time.
+
+Both doors are clamped by the same rules, so a slider and a YAML line behave identically, and a value
+the pane writes is stored in its clamped form — the file always says what the window does. *Reset* in
+the pane clears that third layer and the row decides again. The pane keeps its own file because a
+browser cannot safely rewrite YAML: editing `cordis.patch.yml` from a UI would round-trip a file other
+sessions also edit.
+
 
 Defaults live in the package's own `cordis.patch.yml`. To change one, put a row **with the same id**
 in your profile's patch layer (`$DSH_HOME/profiles/<profile>/cordis.patch.yml`) — a row without
