@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 — the finish animation plays when you switch to a finished session
+
+The motion keys on the front session's identity (`id|status`), not on its status alone. Switching
+from one finished session to another is a transition the window now sees, so the finish motion runs
+again instead of nothing happening — `pose — front session-a|done -> session-b|done` in the window
+log, which is new too: "the animation did not play" is otherwise unanswerable from outside the
+process.
+
 ## 0.1.1 — the notch gets quieter
 
 **Installing is one command now.** `dsh plugin --profile <p> add dsh-agents-notch` is the whole
