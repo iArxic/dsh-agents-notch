@@ -1,5 +1,8 @@
 # Agents Notch
 
+<img src="docs/banner.png" alt="Agents Notch: a dark pill at the top of the screen holding one bot per DeepSeek Harness session, with working / needs you / done underneath" width="100%">
+
+
 **`dsh-agents-notch`** — an always-on-top notch for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 that answers one question: **which of my sessions needs me right now?**
 
