@@ -103,7 +103,10 @@ in your profile's patch layer (`$DSH_HOME/profiles/<profile>/cordis.patch.yml`) 
 | `screen` | `primary` | `primary` · `cursor` · `1` · `2` … (as Windows numbers them) |
 | `scale` | `1` | 0.75–2 |
 | `hideFullscreen` | `true` | hide under a full-screen app |
-| `finishedFallbackMs` | `900000` | how long a settled row survives when `session-finished` is absent |
+| `opacity` | `1` | 0.35–1, how much of the desktop the notch sits in front of |
+| `motion` | `auto` | `auto` follows Windows' reduce-motion setting; `on` forces the animation, `off` draws the settled pose and nothing else |
+| `showProject` | `true` | the project name in the sub line (the colour chips at right stay) |
+| `showDone` | `true` | `false` keeps finished sessions off the board entirely (and out of the count) || `finishedFallbackMs` | `900000` | how long a settled row survives when `session-finished` is absent |
 | `stateDir` | `$DSH_HOME/state/agents-notch` | where the state file, the log and the window live |
 | `exePath` | — | force one window binary |
 
@@ -161,7 +164,7 @@ Remove-Item -Recurse "$env:DSH_HOME\state\agents-notch"    # state, log, window 
 ## Develop
 
 ```powershell
-npm test                      # 39 tests, node --test, no harness and no window needed
+npm test                      # 40 tests, node --test, no harness and no window needed
 npm run window:build          # dotnet build desktop/AgentsNotch.csproj -c Release
 npm run window:publish        # self-contained single file + SHA256 into dist/win-x64
 

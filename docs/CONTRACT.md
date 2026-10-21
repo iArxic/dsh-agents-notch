@@ -48,7 +48,11 @@ DSH host process                                  separate Windows process
     "screen": "primary",          // "primary" | "cursor" | "1" | "2" …  (1-based, as Windows numbers them)
     "anchor": "top-center",       // "top-center" | "top-left" | "top-right"
     "maxRows": 6,                 // 3 … 10, how many sessions the board may show
-    "hideFullscreen": true        // hide under a full-screen app
+    "hideFullscreen": true,       // hide under a full-screen app
+    "opacity": 1.0,               // 0.35 … 1.0, how much of the desktop it sits in front of
+    "motion": "auto",             // "auto" (follow Windows' reduce-motion) | "on" | "off"
+    "showProject": true,          // the project name in the SUB LINE (the chips at right are the colour legend and stay)
+    "showDone": true              // whether finished sessions appear at all — a HOST filter (rule 6)
   },
 
   "summary": { "status": "working", "working": 2, "attention": 1, "done": 1, "error": 0, "total": 4 },
@@ -89,6 +93,10 @@ DSH host process                                  separate Windows process
    is given, clamps it to the ranges above, and remembers nothing on disk.
 5. **Nothing is invented to fill a field.** `""`/`0`/`null` all mean "not known yet", and the window
    draws nothing for them rather than a placeholder.
+
+6. **A setting that changes WHICH rows exist is applied by the host, never by the window.** `showDone`
+   removes finished sessions from `sessions`, so `summary` — and the tab's ✓ count — cannot disagree
+   with the rows on screen. The window only decides how something looks.
 
 ## Who owns which field
 

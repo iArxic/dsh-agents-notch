@@ -13,6 +13,11 @@
 //   anchor          top-center  "top-center" | "top-left" | "top-right"
 //   maxRows         6        3 … 10
 //   hideFullscreen  true     hide under a full-screen app
+//   opacity         1.0      0.35 … 1.0 — how much of the desktop it sits in front of
+//   motion          auto     "auto" | "on" | "off" — `auto` follows Windows' reduce-motion setting
+//   showProject     true     the project name in the sub line
+//   showDone        true     whether finished sessions are on the board at all (a HOST filter, so
+//                            the tab's ✓ count and the rows cannot disagree)
 
 using System;
 using System.Collections.Generic;
@@ -26,15 +31,21 @@ internal sealed class Settings
 {
     internal const double ScaleMin = .75, ScaleMax = 2.0;
     internal const int RowsMin = 3, RowsMax = 10;
+    internal const double OpacityMin = .35, OpacityMax = 1.0;
 
     internal const string ScreenPrimary = "primary", ScreenCursor = "cursor";
     internal const string AnchorCenter = "top-center", AnchorLeft = "top-left", AnchorRight = "top-right";
+    internal const string MotionAuto = "auto", MotionOn = "on", MotionOff = "off";
 
     public double Scale = 1.0;
     public string Screen = ScreenPrimary;
     public string Anchor = AnchorCenter;
     public int MaxRows = 6;
     public bool HideFullscreen = true;
+    public double Opacity = 1.0;
+    public string Motion = MotionAuto;
+    public bool ShowProject = true;
+    public bool ShowDone = true;
 
     public bool SameAs(Settings other) =>
         other is not null
@@ -42,11 +53,17 @@ internal sealed class Settings
         && Screen == other.Screen
         && Anchor == other.Anchor
         && MaxRows == other.MaxRows
-        && HideFullscreen == other.HideFullscreen;
+        && HideFullscreen == other.HideFullscreen
+        && Opacity.Equals(other.Opacity)
+        && Motion == other.Motion
+        && ShowProject == other.ShowProject
+        && ShowDone == other.ShowDone;
 
     public override string ToString() =>
         $"scale={Scale.ToString("0.##", CultureInfo.InvariantCulture)} screen={Screen} anchor={Anchor}" +
-        $" maxRows={MaxRows} hideFullscreen={HideFullscreen}";
+        $" maxRows={MaxRows} hideFullscreen={HideFullscreen}" +
+        $" opacity={Opacity.ToString("0.##", CultureInfo.InvariantCulture)} motion={Motion}" +
+        $" showProject={ShowProject} showDone={ShowDone}";
 
     /// <summary>
     /// The settings block of a state file. A missing block, a missing member, a wrong type and an
@@ -62,9 +79,17 @@ internal sealed class Settings
         if (String(block, "screen") is string screen) s.Screen = NormaliseScreen(screen);
         if (String(block, "anchor") is string anchor) s.Anchor = NormaliseAnchor(anchor);
         if (Number(block, "maxRows") is double rows) s.MaxRows = ClampRows(rows);
+        if (Number(block, "opacity") is double opacity) s.Opacity = ClampOpacity(opacity);
+        if (String(block, "motion") is string motion) s.Motion = NormaliseMotion(motion);
         if (block.TryGetProperty("hideFullscreen", out var hide)
             && (hide.ValueKind == JsonValueKind.True || hide.ValueKind == JsonValueKind.False))
             s.HideFullscreen = hide.GetBoolean();
+        if (block.TryGetProperty("showProject", out var project)
+            && (project.ValueKind == JsonValueKind.True || project.ValueKind == JsonValueKind.False))
+            s.ShowProject = project.GetBoolean();
+        if (block.TryGetProperty("showDone", out var done)
+            && (done.ValueKind == JsonValueKind.True || done.ValueKind == JsonValueKind.False))
+            s.ShowDone = done.GetBoolean();
         return s;
     }
 
@@ -75,6 +100,17 @@ internal sealed class Settings
     /// <summary>`3 … 10`, rounded, and anything unreadable is the default 6.</summary>
     internal static int ClampRows(double value) =>
         double.IsFinite(value) ? (int)Math.Clamp(Math.Round(value), RowsMin, RowsMax) : 6;
+
+    /// <summary>`0.35 … 1.0`: low enough to be quiet, never so low that the notch becomes a ghost.</summary>
+    internal static double ClampOpacity(double value) =>
+        double.IsFinite(value) ? Math.Clamp(value, OpacityMin, OpacityMax) : 1.0;
+
+    /// <summary>"auto" / "on" / "off"; anything else is "auto" (which defers to Windows).</summary>
+    internal static string NormaliseMotion(string value)
+    {
+        var text = (value ?? "").Trim().ToLowerInvariant();
+        return text is MotionOn or MotionOff ? text : MotionAuto;
+    }
 
     /// <summary>"primary" / "cursor" / "1" / "2" …; anything else is "primary".</summary>
     internal static string NormaliseScreen(string value)

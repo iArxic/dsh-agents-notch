@@ -200,8 +200,8 @@ test("a state.json from apply() is schema 3 — the contract's keys and nothing 
 	assert.equal(state.context.hotAt, 0.5);
 
 	// --- settings ---------------------------------------------------------------------------------
-	assert.deepEqual(Object.keys(state.settings).sort(), ["anchor", "hideFullscreen", "maxRows", "scale", "screen"]);
-	assert.deepEqual(state.settings, { scale: 1, screen: "primary", anchor: "top-center", maxRows: 6, hideFullscreen: true });
+	assert.deepEqual(Object.keys(state.settings).sort(), ["anchor", "hideFullscreen", "maxRows", "motion", "opacity", "scale", "screen", "showDone", "showProject"]);
+	assert.deepEqual(state.settings, { scale: 1, screen: "primary", anchor: "top-center", maxRows: 6, hideFullscreen: true, opacity: 1, motion: "auto", showProject: true, showDone: true });
 
 	// --- summary ----------------------------------------------------------------------------------
 	assert.deepEqual(Object.keys(state.summary).sort(), ["attention", "done", "error", "status", "total", "working"]);
@@ -261,19 +261,19 @@ test("the context budget is null published — and a positive one is published a
 test("settings are clamped to the contract's ranges, and a bad value falls back silently", () => {
 	// The window clamps too, but the host must not rely on that: these are the human's settings and
 	// a typo in a config file has to cost a default, never an exception.
-	assert.deepEqual(settingsOf({}), { scale: 1, screen: "primary", anchor: "top-center", maxRows: 6, hideFullscreen: true });
+	assert.deepEqual(settingsOf({}), { scale: 1, screen: "primary", anchor: "top-center", maxRows: 6, hideFullscreen: true, opacity: 1, motion: "auto", showProject: true, showDone: true });
 	assert.deepEqual(
 		settingsOf({ scale: 5, screen: "nope", anchor: "middle", maxRows: 99, hideFullscreen: "yes" }),
-		{ scale: 2, screen: "primary", anchor: "top-center", maxRows: 10, hideFullscreen: true },
+		{ scale: 2, screen: "primary", anchor: "top-center", maxRows: 10, hideFullscreen: true, opacity: 1, motion: "auto", showProject: true, showDone: true },
 	);
 	assert.deepEqual(
 		settingsOf({ scale: 0.1, screen: 0, anchor: "top-left", maxRows: 1, hideFullscreen: false }),
-		{ scale: 0.75, screen: "primary", anchor: "top-left", maxRows: 3, hideFullscreen: false },
+		{ scale: 0.75, screen: "primary", anchor: "top-left", maxRows: 3, hideFullscreen: false, opacity: 1, motion: "auto", showProject: true, showDone: true },
 	);
 	// In range: passed through, not normalised to the default.
 	assert.deepEqual(
-		settingsOf({ scale: 1.25, screen: "cursor", anchor: "top-right", maxRows: 4, hideFullscreen: false }),
-		{ scale: 1.25, screen: "cursor", anchor: "top-right", maxRows: 4, hideFullscreen: false },
+		settingsOf({ scale: 1.25, screen: "cursor", anchor: "top-right", maxRows: 4, hideFullscreen: false, opacity: 1, motion: "auto", showProject: true, showDone: true }),
+		{ scale: 1.25, screen: "cursor", anchor: "top-right", maxRows: 4, hideFullscreen: false, opacity: 1, motion: "auto", showProject: true, showDone: true },
 	);
 	// Displays are 1-based, as Windows numbers them; a digit string is a display, "0" is not.
 	assert.equal(settingsOf({ screen: "2" }).screen, "2");
@@ -284,6 +284,15 @@ test("settings are clamped to the contract's ranges, and a bad value falls back 
 	assert.equal(settingsOf({ maxRows: 4.6 }).maxRows, 5);
 	assert.equal(settingsOf({ maxRows: "7" }).maxRows, 7);
 	assert.equal(settingsOf({ maxRows: null }).maxRows, 6);
+	// The four appearance knobs, clamped the same way — a typo costs a default, never an exception.
+	assert.equal(settingsOf({ opacity: 0.05 }).opacity, 0.35);
+	assert.equal(settingsOf({ opacity: 4 }).opacity, 1);
+	assert.equal(settingsOf({ opacity: 0.6 }).opacity, 0.6);
+	assert.equal(settingsOf({ opacity: "nope" }).opacity, 1);
+	assert.equal(settingsOf({ motion: "sometimes" }).motion, "auto");
+	assert.equal(settingsOf({ motion: "OFF" }).motion, "off");
+	assert.equal(settingsOf({ showProject: "no" }).showProject, true);
+	assert.equal(settingsOf({ showDone: false }).showDone, false);
 	// A missing/blank value is absent, not zero.
 	assert.equal(settingsOf({ scale: "" }).scale, 1);
 	assert.equal(settingsOf({ scale: null }).scale, 1);
@@ -607,4 +616,23 @@ test("a missing window is reported once a minute with the exact fix, and the boa
 	assert.equal(missing.length, 1, `expected exactly one window-missing, saw ${missing.length}`);
 	assert.ok(typeof missing[0].fix === "string" && missing[0].fix.includes("AgentsNotch.exe"));
 	assert.ok(Array.isArray(missing[0].tried));
+});
+
+test("`settings.showDone: false` takes finished rows off the board, and the count with them", () => {
+	// Only the host computes both the rows and the summary, so the filter belongs here: a filter in
+	// the window would let the tab's ✓ count disagree with the rows it is summarising.
+	const finished = createRecord("session-finished");
+	applyEvent(finished, { type: "turn/end", data: { reason: { kind: "completed" } } });
+	const working = createRecord("session-working");
+	working.status = "working";            // the reducer sets this from turn/step events
+
+	const all = buildState({ records: [finished, working], config: {} });
+	assert.equal(all.sessions.length, 2);
+	assert.equal(all.summary.done, 1);
+
+	const shown = buildState({ records: [finished, working], config: { showDone: false } });
+	assert.deepEqual(shown.sessions.map((row) => row.id), ["session-working"]);
+	assert.equal(shown.summary.done, 0, "the tab's count must agree with the rows it shows");
+	assert.equal(shown.summary.total, 1);
+	assert.equal(shown.settings.showDone, false);
 });

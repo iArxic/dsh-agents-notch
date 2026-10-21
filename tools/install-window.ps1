@@ -92,7 +92,19 @@ try {
 			if (-not $exe) { throw "the archive has no AgentsNotch.exe: $Url" }
 			Install-Exe $exe.FullName ($exe.FullName + '.sha256')
 		} else {
-			Install-Exe $downloaded ($downloaded + '.sha256')
+			# The hash is a SECOND release asset, so fetching the exe over HTTP does not bring it
+			# along. Ask for it at `<url>.sha256` — that is where a release puts it — and let
+			# Install-Exe warn if the release has no such asset. Measured: without this, an install
+			# from a URL was always "unverified", which is the one path the README promises verifies.
+			$sibling = $downloaded + '.sha256'
+			if (-not (Test-Path $sibling)) {
+				try {
+					Invoke-WebRequest -Uri ($Url.TrimEnd('/') + '.sha256') -OutFile $sibling -UseBasicParsing -ErrorAction Stop
+				} catch {
+					Write-Host "the release publishes no .sha256 next to the exe; continuing unverified"
+				}
+			}
+			Install-Exe $downloaded $sibling
 		}
 	} else {
 		$local = Join-Path $packageRoot 'dist/win-x64'

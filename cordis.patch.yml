@@ -36,6 +36,15 @@
         # compacts. Only meaningful when contextBudget is set.
         contextHotAt: 0.5
 
+        # How much of the desktop it sits in front of, and whether anything moves.
+        opacity: 1                # 0.35 – 1
+        motion: auto              # auto = follow Windows' reduce-motion setting; on | off
+
+        # Which text it shows. `showDone: false` keeps finished sessions off the board entirely, so
+        # the tab's count cannot disagree with the rows; the host applies that one.
+        showProject: true         # the project name in the sub line
+        showDone: true
+
         # Where the notch sits, and on which display.
         anchor: top-center        # top-center | top-left | top-right
         screen: primary           # primary | cursor | 1 | 2 …

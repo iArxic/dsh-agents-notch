@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.1 — the notch gets quieter
+
+Four settings that change how it sits on the desktop, all from the plugin row's `config`, all clamped,
+none remembered on disk:
+
+| setting | default | what it does |
+|---|---|---|
+| `opacity` | `1` | 0.35–1: how much of the desktop it sits in front of |
+| `motion` | `auto` | `auto` follows Windows' *reduce motion* setting; `on` forces the animation; `off` draws the settled pose of each state and nothing else — no blink, no breath, no pulse |
+| `showProject` | `true` | the project name in the sub line (the colour chips stay) |
+| `showDone` | `false`-able | `false` keeps finished sessions off the board and out of the count — applied by the HOST, so the tab cannot disagree with the rows |
+
+`off` is not "animations disabled and everything looks broken": each state has a settled pose (the
+rest face after finishing, the wide eyes of a session waiting on you, the frown of a failure), and
+that is what a still notch draws.
 ## 0.1.0 — first release
 
 The overlay, rebuilt as a package you can install.

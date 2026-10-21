@@ -525,7 +525,7 @@ internal static class Live
     /// second click on the same row clears it, and so does clicking the card's background — the
     /// pin is a question ("show me this one"), not a mode.
     /// </summary>
-    public static BoardData Build(StateFile state, string? pinnedId = null, int maxRows = 6, bool stale = false)
+    public static BoardData Build(StateFile state, string? pinnedId = null, int maxRows = 6, bool stale = false, bool showProject = true)
     {
         var d = new BoardData
         {
@@ -597,7 +597,9 @@ internal static class Live
             d.Identity = IdentityOf(front.Identity);
             d.FrontStatus = front.Status;
             d.Title = front.Title.Length > 0 ? front.Title : ProjectOf(front);
-            d.Sub = $"{ProjectOf(front)} · {Phrase(front.Status, Age(front.Since))}";
+            d.Sub = showProject
+                ? $"{ProjectOf(front)} · {Phrase(front.Status, Age(front.Since))}"
+                : Phrase(front.Status, Age(front.Since));
             d.ContextTokens = front.ContextTokens;
         }
 
@@ -838,6 +840,19 @@ internal sealed class OverlayWindow : Window
     Settings _settings = new();
     /// <summary>`settings.scale`, as the LayoutTransform on `_host` uses it.</summary>
     double _scale = 1.0;
+    /// <summary>
+    /// `settings.motion` resolved: true means the notch draws and nothing moves. `auto` defers to
+    /// Windows' own answer (`SystemParameters.ClientAreaAnimation`, the "animate controls" lever that
+    /// the Reduce motion / Show animations setting drives), because a person who turned that off for
+    /// Windows did not mean "except for this".
+    /// </summary>
+    bool _motionOff;
+    /// <summary>
+    /// The clock the IDLE motion reads while `_motionOff`. Zero on purpose: at t=0 the blink phase is
+    /// at its start (eyes open), the breath is mid-way, and every pulse sits at a fixed value, so a
+    /// still notch looks like a held breath rather than a frozen frame of a blink.
+    /// </summary>
+    const double StillTime = 0.0;
     /// <summary>The card's height for the rows it currently carries — 198 at six rows, more above.</summary>
     double _cardH = CardBaseH;
     /// <summary>The window's height in design units; it grows with the card.</summary>
@@ -1160,7 +1175,7 @@ internal sealed class OverlayWindow : Window
             if (state is null) return;
             _lastState = state;
             _settings = state.Settings;
-            _data = Live.Build(state, null, _settings.MaxRows, IsStale(state));
+            _data = Live.Build(state, null, _settings.MaxRows, IsStale(state), _settings.ShowProject);
             ApplySettings(_settings);
             Log.Write($"seeded — {_settings}");
         }
@@ -1187,6 +1202,11 @@ internal sealed class OverlayWindow : Window
         _host.LayoutTransform = Math.Abs(_scale - 1.0) < 1e-4
             ? Transform.Identity
             : new ScaleTransform(_scale, _scale);
+        // How much of the desktop the notch sits in front of. Set on `_root` so the card's own reveal
+        // (which animates `_cardHost.Opacity` from 0) still works: the two multiply.
+        _root.Opacity = next.Opacity;
+        _motionOff = next.Motion == Settings.MotionOff
+            || (next.Motion == Settings.MotionAuto && !System.Windows.SystemParameters.ClientAreaAnimation);
         ResizeWindow();
         if (changed) PlaceWindow();
     }
@@ -1535,7 +1555,7 @@ internal sealed class OverlayWindow : Window
         if (string.IsNullOrEmpty(id)) return;
         _pinnedId = _pinnedId == id ? null : id;
         Log.Write($"pinned — {(_pinnedId is null ? "(none)" : _pinnedId)}");
-        if (_lastState is not null) ApplyBoard(Live.Build(_lastState, _pinnedId, _settings.MaxRows, _data.Stale));
+        if (_lastState is not null) ApplyBoard(Live.Build(_lastState, _pinnedId, _settings.MaxRows, _data.Stale, _settings.ShowProject));
         RebuildStatic();          // the ✕ appears and disappears with the selection
     }
 
@@ -1714,7 +1734,7 @@ internal sealed class OverlayWindow : Window
             Dismiss(state.Sessions[_opt.DismissIndex].Id);
         }
 
-        var board = Live.Build(state, _pinnedId, _settings.MaxRows, IsStale(state));
+        var board = Live.Build(state, _pinnedId, _settings.MaxRows, IsStale(state), _settings.ShowProject);
         ApplyBoard(board);
         string logKey = $"{board.SessionCount}|{board.MiniStates.Count}|{board.Title}|{board.ContentKey}|{board.Stale}";
         if (logKey != _lastLoggedKey)
@@ -1771,11 +1791,19 @@ internal sealed class OverlayWindow : Window
         _lastT = t; _t = t;
         double workStart = _sw.Elapsed.TotalMilliseconds;
 
+        // MOTION OFF: the IDLE motion reads a clock that does not run. `t` stays real for everything
+        // that has to finish — a session arriving, a retired row folding, a ring fading — because a
+        // person who asked for no motion still expects a new session to appear. What freezes is the
+        // breath, the blink, the pulses and a state's transition, which is exactly the part that
+        // draws the eye away from the work.
+        double st = _motionOff ? StillTime : t;
+
         // the board unfolds on hover and folds away when the pointer leaves
         bool mayOpen = _forceOpen || _want || t < _collapseAt;
         if (mayOpen && _fullscreen && !_forceShow) mayOpen = false;
         double target = mayOpen ? 1 : 0;
-        if (Math.Abs(target - _p) > 0.0005) _p += (target - _p) * Math.Min(1, dt / ExpandSeconds);
+        if (_motionOff) _p = target;
+        else if (Math.Abs(target - _p) > 0.0005) _p += (target - _p) * Math.Min(1, dt / ExpandSeconds);
         else _p = target;
         ApplyProgress();
 
@@ -1789,8 +1817,12 @@ internal sealed class OverlayWindow : Window
         const double reach = 320;
         double tx = dist < reach ? dx / reach : 0;
         double ty = dist < reach ? dy / reach : 0;
-        _lookX += (tx - _lookX) * Math.Min(1, dt / 0.22 * 3);
-        _lookY += (ty - _lookY) * Math.Min(1, dt / 0.22 * 3);
+        if (_motionOff) { _lookX = 0; _lookY = 0; }          // centred eyes, not eyes that follow
+        else
+        {
+            _lookX += (tx - _lookX) * Math.Min(1, dt / 0.22 * 3);
+            _lookY += (ty - _lookY) * Math.Min(1, dt / 0.22 * 3);
+        }
 
         // ── the front session's face ─────────────────────────────────────────────
         //
@@ -1806,6 +1838,14 @@ internal sealed class OverlayWindow : Window
             _alertStart = front == "attention" ? t : -1;
             _errorStart = front == "error" ? t : -1;
         }
+        // …and with motion off every transition is told it finished 20 s ago, which lands each state
+        // on its SETTLED pose: a finished session's rest face, the wide eyes of one waiting on you,
+        // the frown of a failure. The state is still drawn; only the performance is skipped.
+        if (_motionOff) _finishStart = _alertStart = _errorStart = st - 20;
+
+        // CONTRACT: the last transition's anchor is the clock the pose reads, so a still notch shows
+        // where the session ENDED UP rather than the first frame of the motion.
+        double poseFrom(double start) => start < 0 ? 1e9 : (st - start) * 1000;
 
         // idle life: a slow wander UNDER the pointer-following, so it is never perfectly still
         double lx = Math.Clamp(_lookX + .18 * Math.Sin(t / 0.9 * 2 * Math.PI) + .07 * Math.Sin(t / 0.31), -1, 1);
@@ -1813,7 +1853,7 @@ internal sealed class OverlayWindow : Window
 
         // blink: every 1.9 s, and every other one comes twice — measured against the mock-up's
         // 50 fps motion, where a single 160 ms blink read as thin
-        double ms = t * 1000, blinkPhase = ms % 1900;
+        double ms = st * 1000, blinkPhase = ms % 1900;
         int cycle = (int)(ms / 1900);
         double open = blinkPhase < 160 ? 1 - Math.Sin(Math.PI * blinkPhase / 160) : 1;
         if (cycle % 2 == 1)
@@ -1828,7 +1868,7 @@ internal sealed class OverlayWindow : Window
         if (front == "done")
         {
             ringTarget = 1;
-            double et = _freezeMs >= 0 ? _freezeMs : _finishStart < 0 ? 1e9 : (t - _finishStart) * 1000;
+            double et = _freezeMs >= 0 ? _freezeMs : poseFrom(_finishStart);
             if (et < 80) open = 1 - Ease(et / 80.0);                                   // the eyes shut
             else if (et < 180) { arc = true; open = 0; bend = Ease((et - 80) / 100.0); }   // the squint rises
             else if (et < 820)
@@ -1844,7 +1884,7 @@ internal sealed class OverlayWindow : Window
         else if (front == "attention")
         {
             ringTarget = 1;
-            double et = _freezeMs >= 0 ? _freezeMs : _alertStart < 0 ? 1e9 : (t - _alertStart) * 1000;
+            double et = _freezeMs >= 0 ? _freezeMs : poseFrom(_alertStart);
             double widen = Ease(Math.Min(1, et / 260.0));
             open = 1 + .34 * widen;
             spread = 1 + .14 * widen;
@@ -1855,26 +1895,26 @@ internal sealed class OverlayWindow : Window
         else if (front == "error")
         {
             ringTarget = 1;
-            double k = Ease(Math.Min(1, ((_errorStart < 0 ? 1e9 : (t - _errorStart) * 1000)) / 700.0));
+            double k = Ease(Math.Min(1, poseFrom(_errorStart) / 700.0));
             open = 1 - .6 * k;
             tilt = 15 * k;
             ly += k;
         }
 
         // the rim breathes; attention flares
-        double wave = (Math.Sin(2 * Math.PI * t / 2.4) + 1) / 2;
+        double wave = (Math.Sin(2 * Math.PI * st / 2.4) + 1) / 2;
         double rim = _data.RimBase * (0.8 + 0.2 * wave);
         if (_flare > 0) { rim += 0.35 * _flare; _flare = Math.Max(0, _flare - dt / 1.2); }
 
         // the status aura behind the main bot — it wears the FRONT session's state
         double glow = 0.18 + 0.12 * wave;
-        if (_data.Badge == Draw.Amber) glow = 0.35 + 0.35 * Math.Abs(Math.Sin(2 * Math.PI * t / 1.2));
-        if (_data.Badge == Draw.Red) glow = 0.30 + 0.25 * Math.Abs(Math.Sin(2 * Math.PI * t / 1.6));
+        if (_data.Badge == Draw.Amber) glow = 0.35 + 0.35 * Math.Abs(Math.Sin(2 * Math.PI * st / 1.2));
+        if (_data.Badge == Draw.Red) glow = 0.30 + 0.25 * Math.Abs(Math.Sin(2 * Math.PI * st / 1.6));
         if (_flare > 0) glow += 0.30 * _flare;
 
         // the ring fades rather than snapping, and pulses only while it is asking for you
         _ringAlpha += (ringTarget - _ringAlpha) * Math.Min(1, dt / 0.25);
-        double ringPulse = front == "attention" ? .72 + .28 * Math.Abs(Math.Sin(2 * Math.PI * t / 1.2)) : 1;
+        double ringPulse = front == "attention" ? .72 + .28 * Math.Abs(Math.Sin(2 * Math.PI * st / 1.2)) : 1;
         _orb?.SetRing(_ringAlpha, ringPulse);
         PositionContext();
 
@@ -1885,7 +1925,7 @@ internal sealed class OverlayWindow : Window
         for (int i = 0; i < _miniBots.Count; i++)
         {
             string status = i < _miniStatus.Count ? _miniStatus[i] : "working";
-            double phase = (t + i * 1.9) % 4.6;
+            double phase = (st + i * 1.9) % 4.6;
             double miniBlink = phase <= 0.14 ? Math.Sin(Math.PI * phase / 0.14) : 0;
             // The AURA is the state and the RING is the identity, so the aura has to be the thing
             // you see first — measured on a 4x zoom of the live tab, a working bot's halo sat at
@@ -1894,10 +1934,10 @@ internal sealed class OverlayWindow : Window
             // it staying on the tab until it is ticked.
             double miniGlow = _miniStates[i] switch
             {
-                var c when c == Draw.Amber => 0.40 + 0.34 * Math.Abs(Math.Sin(2 * Math.PI * t / 1.2)),
-                var c when c == Draw.Red => 0.34 + 0.26 * Math.Abs(Math.Sin(2 * Math.PI * t / 1.6)),
+                var c when c == Draw.Amber => 0.40 + 0.34 * Math.Abs(Math.Sin(2 * Math.PI * st / 1.2)),
+                var c when c == Draw.Red => 0.34 + 0.26 * Math.Abs(Math.Sin(2 * Math.PI * st / 1.6)),
                 var c when c == Draw.Blue => 0.30 + 0.20 * wave,
-                var c when c == Draw.Green => 0.26 + 0.10 * Math.Abs(Math.Sin(2 * Math.PI * t / 3.2)),
+                var c when c == Draw.Green => 0.26 + 0.10 * Math.Abs(Math.Sin(2 * Math.PI * st / 3.2)),
                 _ => 0.14,
             };
             _miniBots[i].Set(miniBlink, miniGlow, status);
@@ -1949,9 +1989,9 @@ internal sealed class OverlayWindow : Window
         double s = 1 + 0.015 * Math.Sin(2 * Math.PI * t / 3.2);
         if (_orb is not null)
         {
-            if (_orb.RenderTransform is not ScaleTransform st)
-            { st = new ScaleTransform(); _orb.RenderTransform = st; }
-            st.ScaleX = s; st.ScaleY = s;
+            if (_orb.RenderTransform is not ScaleTransform sc)
+            { sc = new ScaleTransform(); _orb.RenderTransform = sc; }
+            sc.ScaleX = s; sc.ScaleY = s;
         }
 
         // ── frame statistics ────────────────────────────────────────────────────
@@ -2067,7 +2107,7 @@ internal sealed class OverlayWindow : Window
             bool stale = quiet || (_lastState is not null && IsStale(_lastState));
             if (stale != _data.Stale && _lastState is not null)
             {
-                var board = Live.Build(_lastState, _pinnedId, _settings.MaxRows, stale);
+                var board = Live.Build(_lastState, _pinnedId, _settings.MaxRows, stale, _settings.ShowProject);
                 ApplyBoard(board);
                 Log.Write(stale ? "feed is stale — the tab says host offline" : "feed is live again");
             }
