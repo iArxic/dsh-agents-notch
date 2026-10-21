@@ -49,7 +49,7 @@ $hash = "$exe.sha256"
 
 function Step($text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 function Note($text) { Write-Host "   $text" }
-function Do($block) { if ($DryRun) { Note "(dry run) $block" } else { & ([scriptblock]::Create($block)) } }
+function Run($block) { if ($DryRun) { Note "(dry run) $block" } else { & ([scriptblock]::Create($block)) } }
 
 Step "package $($manifest.name) $version -> tag $tag -> release $slug"
 
@@ -66,7 +66,7 @@ Note "release asset $([math]::Round((Get-Item $exe).Length / 1MB, 1)) MB, sha256
 $remotes = git remote
 if ($remotes -notcontains $Remote) {
 	Step "remotes"
-	Do "git remote add $Remote $repoUrl"
+	Run "git remote add $Remote $repoUrl"
 	Note "added $Remote -> $repoUrl"
 } else {
 	Note "remote $Remote already points at $(git remote get-url $Remote)"
@@ -74,16 +74,16 @@ if ($remotes -notcontains $Remote) {
 
 # ---------------------------------------------------------------- push + tag
 Step 'push the branch'
-try { Do "git push $Remote HEAD" ; Note 'pushed' } catch { Note "push failed: $($_.Exception.Message)" }
+try { Run "git push $Remote HEAD" ; Note 'pushed' } catch { Note "push failed: $($_.Exception.Message)" }
 
 Step "tag $tag"
 if ((git tag --list $tag) -eq $tag) {
 	Note "tag exists locally"
 } else {
-	Do "git tag -a $tag -m 'Agents Notch $version'"
+	Run "git tag -a $tag -m 'Agents Notch $version'"
 	Note 'tagged'
 }
-try { Do "git push $Remote $tag"; Note 'tag pushed' } catch { Note "tag push failed: $($_.Exception.Message)" }
+try { Run "git push $Remote $tag"; Note 'tag pushed' } catch { Note "tag push failed: $($_.Exception.Message)" }
 
 # ---------------------------------------------------------------- GitHub release
 if (-not $SkipRelease) {
