@@ -45,6 +45,10 @@ gh release create v0.1.0 dist/win-x64/AgentsNotch.exe `
    --title "Agents Notch 0.1.0" --notes-file CHANGELOG.md
 ```
 
+**The tag must be `v<version>`, exactly the version in `package.json`.** The host's auto-fetch derives
+its URL as `v<package version>`; a release tagged `v0.2` for package `0.1.2` installs for nobody and
+falls back to the by-hand installer. If you bump the package without cutting a release, that is what
+new installs will do — the fetch 404s, says so in `host-report.jsonl`, and prints the manual command.
 The asset name must stay `AgentsNotch.exe`: that is the name `install-window.ps1` fetches and the
 name the host looks for. The README's `-Url` example then works as written.
 

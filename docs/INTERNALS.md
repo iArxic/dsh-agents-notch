@@ -536,6 +536,21 @@ tried and reverted because it dims the state reading.
 
 ## 9. Traps — do not walk into these again
 
+### Measured 2026-10-21 (auto-fetch, and the one bug the end-to-end test caught)
+
+* **A download that lands where the lookup does not look is a silent failure.** The first working
+  auto-fetch wrote `window/0.1.1/AgentsNotch.exe` (`verified: true`, 68 MB) and the very next report
+  line was `window-missing` looking for `window/0.0.0/…`: the fetch derived the version from the
+  PACKAGE, the lookup from its own `exeRoot`, and one override apart they disagreed. Nothing threw;
+  the window simply never appeared. Both now derive from the same root, and the end-to-end test —
+  serve the asset over HTTP, hide every other candidate, mount, read the report — is the only thing
+  that would have caught it, because each half was individually correct.
+
+* **A module change cannot be tested live without a new file name**, even for a plugin row that is
+  unmounted and re-installed: the loader caches by URL, so the second import serves the first
+  module. The live auto-fetch test above only ran after `lib/host.js` was copied to `lib/host-auto.js`
+  and `main` repointed at it — which is also why the shipped package carries one of each.
+
 ### Measured 2026-10-21 (shipping it as a package)
 
 * **A single-file .NET release can die before `Main`, and there is nothing on screen to say so.** The

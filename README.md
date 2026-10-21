@@ -42,42 +42,43 @@ With a single session it is a decoration; that is stated under *Limits* rather t
 
 ## Install
 
-Two artefacts: the plugin (JavaScript, from npm or a checkout) and the window (one executable, from a
-release). The plugin keeps working if the window is missing — it serves its state and logs one line a
-minute with the command — so the two steps can be done in either order.
-
-**1. The plugin.** On the desktop app, use its own plugin manager (Settings → plugins → add, search
-`dsh-agents-notch`); the CLI refuses the reserved `desktop` profile. On any other profile:
+**One command**, like every other DSH plugin:
 
 ```powershell
-dsh plugin --profile <profile> add dsh-agents-notch
-
-# not on npm yet? the same package installs from a checkout or a packed tarball:
-dsh plugin --profile <profile> add file:C:\path\to\dsh-agents-notch
+dsh plugin --profile <profile> add dsh-agents-notch     # or the app's own plugin manager
 ```
 
-**2. The window**, into `$DSH_HOME\state\agents-notch\window\<version>\`:
+That is the whole install. The plugin is ~30 KB of JavaScript; the 65 MB window does not ride in the
+tarball, because every version bump would re-upload it and every update re-download it. Instead the
+host **fetches the matching release asset itself** the first time it needs a window it cannot find:
+`v<version>` of `repository` in the package manifest, hash verified against the `.sha256` published
+beside it, written to `$DSH_HOME\state\agents-notch\window\<version>\`. You can watch it happen:
+
+```jsonc
+{"event":"window-fetch","url":"https://github.com/<owner>/dsh-agents-notch/releases/download/v0.1.1/AgentsNotch.exe"}
+{"event":"window-fetched","bytes":68276826,"verified":true}
+{"event":"window-started","pid":6704,"source":"installed"}
+```
+
+**What success looks like:** within a couple of seconds of the harness starting, the tab is at the top
+of the screen, and `$DSH_HOME\state\agents-notch\state.json` lists your sessions. If the tab does not
+appear, that directory holds `host-report.jsonl` — the newest line says which of the five places the
+host looked, whether it tried to fetch, and the command that fixes it.
+
+Offline, behind a firewall, or you just prefer to do it by hand? The installer does the same job:
 
 ```powershell
-# from the release asset: one 65 MB exe and its .sha256, the hash is verified before installing
 pwsh -File "<profile>\node_modules\dsh-agents-notch\tools\install-window.ps1" `
-     -Url https://github.com/<owner>/dsh-agents-notch/releases/download/v0.1.0/AgentsNotch.exe
-
-# or from a source checkout you built yourself (`npm run window:publish`)
+     -Url https://github.com/<owner>/dsh-agents-notch/releases/download/v0.1.1/AgentsNotch.exe
+# or from a checkout you built yourself:
 pwsh -File tools\install-window.ps1 -FromPath dist\win-x64
 ```
 
-**What success looks like:** within a second of the harness starting, the tab is at the top of the
-screen and `$DSH_HOME\state\agents-notch\state.json` lists your sessions. If the tab does not appear,
-that directory also holds `host-report.jsonl` — its newest line names the path the host looked for,
-which of the five places it tried, and the command that fixes it.
-
-The release is **one 65 MB file** with no prerequisites. Being one file, it unpacks its native
-libraries on first run, and the plugin points that unpack at `<stateDir>\bundle` rather than
-`%TEMP%`: measured on a normal Windows 11 box, the default unpack directory could not be created
-(error 5) and the app died before drawing anything, with no message a user would ever see. One
-directory you can delete is a better failure mode than a silent one.
-
+`autoDownload: false` in the plugin row turns the fetch off; `downloadUrl: <url>` points it at a
+mirror. The release is **one 65 MB file** with no prerequisites — no .NET runtime. Being one file, it
+unpacks its native libraries on first run, and the plugin points that unpack at `<stateDir>\bundle`
+rather than `%TEMP%`: measured on a normal Windows 11 box, the default unpack directory could not be
+created (error 5) and the app died before drawing anything, with no message a user would ever see.
 ## Configure
 
 Defaults live in the package's own `cordis.patch.yml`. To change one, put a row **with the same id**
@@ -109,6 +110,8 @@ in your profile's patch layer (`$DSH_HOME/profiles/<profile>/cordis.patch.yml`) 
 | `showDone` | `true` | `false` keeps finished sessions off the board entirely (and out of the count) || `finishedFallbackMs` | `900000` | how long a settled row survives when `session-finished` is absent |
 | `stateDir` | `$DSH_HOME/state/agents-notch` | where the state file, the log and the window live |
 | `exePath` | — | force one window binary |
+| `autoDownload` | `true` | fetch the window from the release when it is missing |
+| `downloadUrl` | — | fetch from a mirror instead of the release |
 
 ### Honest numbers
 
@@ -164,7 +167,7 @@ Remove-Item -Recurse "$env:DSH_HOME\state\agents-notch"    # state, log, window 
 ## Develop
 
 ```powershell
-npm test                      # 40 tests, node --test, no harness and no window needed
+npm test                      # 43 tests, node --test, no harness, no window, no network
 npm run window:build          # dotnet build desktop/AgentsNotch.csproj -c Release
 npm run window:publish        # self-contained single file + SHA256 into dist/win-x64
 

@@ -636,3 +636,27 @@ test("`settings.showDone: false` takes finished rows off the board, and the coun
 	assert.equal(shown.summary.total, 1);
 	assert.equal(shown.settings.showDone, false);
 });
+
+test("with no repository in the manifest the host says it cannot fetch, then reports the fix", async () => {
+	// The auto-download derives its URL from `repository`. This package has none until it is
+	// published, and inventing a URL would 404 in a way that reads like "the plugin is broken".
+	const dir = mkdtempSync(join(tmpdir(), "agents-notch-fetch-skip-"));
+	const host = startHost({
+		config: { stateDir: dir, spawnWindow: true, exePath: join(dir, "no-such-window.exe"), exeRoot: dir, pollMs: 40, report: true },
+	});
+	const events = await until(async () => {
+		if (!existsSync(join(dir, "host-report.jsonl"))) return null;
+		const lines = readFileSync(join(dir, "host-report.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+		return lines.some((event) => event.event === "window-missing") ? lines : null;
+	});
+	for (const dispose of host.disposers) dispose();
+	assert.notEqual(events, null, "the host never got as far as reporting the missing window");
+	const names = events.map((event) => event.event);
+	assert.equal(names.includes("window-fetch-skipped"), true, `expected a skip, saw ${names.join(",")}`);
+	const skipped = events.find((event) => event.event === "window-fetch-skipped");
+	assert.match(skipped.reason, /repository/);
+	// …and the human still gets the by-hand command, which is the whole point of the fallback.
+	const missing = events.find((event) => event.event === "window-missing");
+	assert.equal(missing.autoDownload, true);
+	assert.match(missing.fix, /install-window\.ps1/);
+});

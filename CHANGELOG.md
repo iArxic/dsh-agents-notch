@@ -2,6 +2,13 @@
 
 ## 0.1.1 — the notch gets quieter
 
+**Installing is one command now.** `dsh plugin --profile <p> add dsh-agents-notch` is the whole
+install: the package is ~30 KB of JavaScript and the host fetches the matching 65 MB release asset
+itself on first use — URL derived from `repository` and the version (never a constant), hash fetched
+beside it and verified, written atomically, reported as `window-fetch` → `window-fetched` →
+`window-started`. This is what every other DSH plugin does; a PowerShell step afterwards was the odd
+one out. `autoDownload: false` disables it, `downloadUrl` points at a mirror, and
+`tools/install-window.ps1` still installs by hand for an offline machine.
 Four settings that change how it sits on the desktop, all from the plugin row's `config`, all clamped,
 none remembered on disk:
 
