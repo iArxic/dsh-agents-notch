@@ -27,6 +27,18 @@ without it the package page shows broken pictures:
 
 ## 2. Create the repository and push
 
+Everything below from here to the npm publish is one script, once the repo exists and one of the
+credentials is in place:
+
+```powershell
+pwsh -File tools/publish-release.ps1 -DryRun      # every step, changes nothing
+$env:GITHUB_TOKEN = 'ghp_…'                       # classic token, `repo` scope
+pwsh -File tools/publish-release.ps1              # push, tag, release + assets, npm publish
+```
+
+It refuses to run on a dirty tree, refuses to guess the version (tag = `v<package version>`), skips
+anything already done, and prints the by-hand Upload instruction when no token is available.
+
 ```powershell
 git remote add origin https://github.com/<owner>/dsh-agents-notch.git
 git push -u origin master

@@ -33,7 +33,15 @@
     "window:build": "dotnet build desktop/AgentsNotch.csproj -c Release",
     "window:publish": "pwsh -File tools/publish.ps1"
   },
-  "keywords": [
+  "author": "iArxic",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iArxic/dsh-agents-notch.git"
+  },
+  "homepage": "https://github.com/iArxic/dsh-agents-notch#readme",
+  "bugs": {
+    "url": "https://github.com/iArxic/dsh-agents-notch/issues"
+  },  "keywords": [
     "deepseek-harness",
     "dsh",
     "dsh-plugin",
