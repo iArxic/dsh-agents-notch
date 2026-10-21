@@ -1,0 +1,43 @@
+# dsh-agents-notch — DSH bundle patch layer
+#
+# Mounts the host half. The row names the package itself rather than a path: the loader resolves a
+# bare specifier from the profile's node_modules exactly as it resolves every other plugin row
+# (`@deepseek-ai/dsh-mcp-client` in dsh-computer-use-win's patch works the same way), so this file
+# carries no absolute path, no `file://` URL and nothing that depends on where the package was
+# installed. `main` in package.json is the host half.
+#
+# The WINDOW is not mounted here: it is a separate .NET process this host spawns (§ "The window" in
+# README.md). If its binary is not installed yet the host still runs, logs `window-missing` with the
+# one command that fixes it, and serves its state route — so the plugin is never silently absent.
+#
+# Every value below has a default in lib/host.js; the ones written out are the ones a human may
+# actually want to change.
+
+- insert:
+    - id: agents-notch
+      name: dsh-agents-notch
+      config:
+        spawnWindow: true
+
+        # How often the host rebuilds and publishes its state. The window polls the file every
+        # 150 ms; the host's own heartbeat (wallMs) is compared against this to detect "gone".
+        pollMs: 340
+
+        # How many sessions the board may show at once (3–10).
+        maxRows: 6
+
+        # The route's context window, in tokens. NULL means "not known", and then the tab shows the
+        # token count instead of a percentage. A percentage against a guessed denominator would be a
+        # lie that looks like information, so this does not default to a plausible number.
+        # DeepSeek V4 routes on this build: 1000000.
+        contextBudget: null
+
+        # Where the context bar turns amber: the fraction of the window at which this route
+        # compacts. Only meaningful when contextBudget is set.
+        contextHotAt: 0.5
+
+        # Where the notch sits, and on which display.
+        anchor: top-center        # top-center | top-left | top-right
+        screen: primary           # primary | cursor | 1 | 2 …
+        scale: 1                  # 0.75 – 2
+        hideFullscreen: true

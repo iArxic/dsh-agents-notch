@@ -1,0 +1,79 @@
+{
+  "schema": 3,
+  "plugin": "dsh-agents-notch/host",
+  "wallMs": 9999999999999,
+  "hostPid": 4242,
+  "retire": "route",
+  "context": {
+    "budget": 1000000,
+    "hotAt": 0.5
+  },
+  "settings": {
+    "scale": 1.0,
+    "screen": "primary",
+    "anchor": "top-center",
+    "maxRows": 6,
+    "hideFullscreen": true
+  },
+  "summary": {
+    "status": "done",
+    "working": 0,
+    "attention": 0,
+    "done": 2,
+    "error": 1,
+    "total": 3
+  },
+  "sessions": [
+    {
+      "id": "session-88ca03f7-6d1b-4c22-8f47-1a2b3c4d5e60",
+      "title": "Ship the published exe",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\dsh-agents-notch",
+      "status": "error",
+      "since": 1792584337758,
+      "activity": {
+        "kind": "tool",
+        "label": "dotnet"
+      },
+      "approval": null,
+      "steps": 3,
+      "identity": "pink",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 20480
+    },
+    {
+      "id": "session-1f4e9a26-8c73-42bb-9d05-7e6f5a4b3c21",
+      "title": "Argon 0/4 on laptop — fixed",
+      "project": "blindKnifeArgon",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "done",
+      "since": 1792584747758,
+      "activity": {
+        "kind": "tool",
+        "label": "roblox_verify"
+      },
+      "approval": null,
+      "steps": 18,
+      "identity": "teal",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 512000
+    },
+    {
+      "id": "session-6b2d0e18-3a95-4f7c-b8e1-0d9c2b7a4f35",
+      "title": "Knife trail seek fix",
+      "project": "swordsGo",
+      "cwd": "C:\\Projects\\swordsGo",
+      "status": "done",
+      "since": 1792566877758,
+      "activity": null,
+      "approval": null,
+      "steps": 6,
+      "identity": "coral",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 30720
+    }
+  ]
+}

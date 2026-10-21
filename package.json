@@ -1,0 +1,52 @@
+{
+  "name": "dsh-agents-notch",
+  "version": "0.1.0",
+  "description": "A notch at the top of your screen that shows which DeepSeek Harness sessions are working, which need you, and which are done. Windows only.",
+  "type": "module",
+  "main": "./lib/host.js",
+  "exports": {
+    ".": {
+      "default": "./lib/host.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "tools/install-window.ps1",
+    "docs/CONTRACT.md",
+    "docs/INTERNALS.md",
+    "docs/PUBLISHING.md",
+    "docs/*.png",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test test/",
+    "window:build": "dotnet build desktop/AgentsNotch.csproj -c Release",
+    "window:publish": "pwsh -File tools/publish.ps1"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "overlay",
+    "always-on-top",
+    "sessions",
+    "windows"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "os": [
+    "win32"
+  ],
+  "license": "MIT"
+}

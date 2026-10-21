@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <!-- Implicit usings would pull in BOTH System.Drawing and System.Windows.Forms, and every
+         Color / Rectangle / FontFamily in the WPF code becomes ambiguous (CS0104). Named usings
+         per file instead. -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>AgentsNotch</AssemblyName>
+    <RootNamespace>AgentsNotch</RootNamespace>
+    <!-- WPF is system-DPI aware by default, and a top-centre notch placed on a mixed-DPI desk lands
+         in the wrong place without this manifest. It is what the exe carries, so it is also what
+         the published build carries. (Native.SetProcessDpiAwarenessContext is tried in Main as a
+         belt-and-braces for a host that strips the manifest; it fails harmlessly when the manifest
+         already won.) -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.1.0</Version>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+</Project>

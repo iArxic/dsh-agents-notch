@@ -1,0 +1,68 @@
+{
+  "schema": 3,
+  "plugin": "dsh-agents-notch/host",
+  "wallMs": 9999999999999,
+  "hostPid": 4242,
+  "retire": "route",
+  "context": {
+    "budget": null,
+    "hotAt": 0.5
+  },
+  "settings": {
+    "scale": 1.0,
+    "screen": "primary",
+    "anchor": "top-center",
+    "maxRows": 6,
+    "hideFullscreen": true
+  },
+  "summary": {
+    "status": "attention",
+    "working": 1,
+    "attention": 1,
+    "done": 0,
+    "error": 0,
+    "total": 2
+  },
+  "sessions": [
+    {
+      "id": "session-db65f92b-4f8a-4c1e-9a2f-3b6c1d0e7a11",
+      "title": "Argon 0/4 on laptop — fixed",
+      "project": "blindKnifeArgon",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "attention",
+      "since": 1792584337758,
+      "activity": {
+        "kind": "tool",
+        "label": "roblox_verify"
+      },
+      "approval": {
+        "toolName": "pwsh",
+        "reason": "wants to delete 14 files under src/"
+      },
+      "steps": 7,
+      "identity": "teal",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034
+    },
+    {
+      "id": "session-7e2a1c44-9b3d-4a55-8f10-22c9d4b6e803",
+      "title": "Port the window half to AgentsNotch",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\dsh-agents-notch",
+      "status": "working",
+      "since": 1792584747758,
+      "activity": {
+        "kind": "tool",
+        "label": "dotnet build"
+      },
+      "approval": null,
+      "steps": 12,
+      "identity": "violet",
+      "origin": "subagent",
+      "parentSession": "session-5c1f0b22-7a6e-4d3b-9c88-0e41f7a2b5c9",
+      "contextTokens": 88210
+    }
+  ],
+  "_note": "The route window is UNKNOWN (context.budget is null): the board must show a token count and no bar, no percentage and no amber - a percentage against a guessed denominator is a lie that looks like information (docs/CONTRACT.md rule 1). The front session is also the attention case, so the amber \"needs you\" language is visible next to the missing bar."
+}

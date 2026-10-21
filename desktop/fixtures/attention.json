@@ -1,0 +1,67 @@
+{
+  "schema": 3,
+  "plugin": "dsh-agents-notch/host",
+  "wallMs": 9999999999999,
+  "hostPid": 4242,
+  "retire": "route",
+  "context": {
+    "budget": 1000000,
+    "hotAt": 0.5
+  },
+  "settings": {
+    "scale": 1.0,
+    "screen": "primary",
+    "anchor": "top-center",
+    "maxRows": 6,
+    "hideFullscreen": true
+  },
+  "summary": {
+    "status": "attention",
+    "working": 1,
+    "attention": 1,
+    "done": 0,
+    "error": 0,
+    "total": 2
+  },
+  "sessions": [
+    {
+      "id": "session-b41e77c9-3f2d-4a10-9e55-8c7b1f0a63d4",
+      "title": "Rename the plugin and publish the window",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\dsh-agents-notch",
+      "status": "attention",
+      "since": 1792584337758,
+      "activity": {
+        "kind": "tool",
+        "label": "pwsh"
+      },
+      "approval": {
+        "toolName": "pwsh",
+        "reason": "run tools/publish.ps1 — writes dist/win-x64"
+      },
+      "steps": 9,
+      "identity": "teal",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 73400
+    },
+    {
+      "id": "session-0d6b2f83-51c4-49aa-a7e2-9f3c5b8d1e26",
+      "title": "Host half: schema 3 and the quit marker",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\dsh-agents-notch",
+      "status": "working",
+      "since": 1792584747758,
+      "activity": {
+        "kind": "tool",
+        "label": "node"
+      },
+      "approval": null,
+      "steps": 21,
+      "identity": "lime",
+      "origin": "subagent",
+      "parentSession": "session-b41e77c9-3f2d-4a10-9e55-8c7b1f0a63d4",
+      "contextTokens": 140902
+    }
+  ]
+}

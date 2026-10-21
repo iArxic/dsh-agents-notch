@@ -1,0 +1,18 @@
+# .NET build products: machine-local, rebuilt by `npm run window:build`.
+/desktop/bin/
+/desktop/obj/
+
+# A published window: `npm run window:publish` writes here, and a release carries it, not the repo.
+/dist/
+
+node_modules/
+*.user
+*.suo
+.vs/
+
+# Anything a run leaves behind.
+/test/tmp/
+*.log
+
+# npm pack output
+*.tgz
