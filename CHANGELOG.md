@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.4 — the pane's browser half actually reaches the app
+
+0.1.3 declared `exports` twice. JSON keeps the LAST block, and the second one had no `./client`, so
+`dsh-client-modules` could not resolve the browser half: the package installed, the plugin mounted, the
+host route answered — and Settings → Agents Notch simply never appeared. No error anywhere. npm packed
+it happily and `npm publish` reported success.
+
+Fixed, and now guarded by `test/manifest.test.mjs`, which counts `"exports"` blocks **textually** (a
+JSON parser hides the mistake by design) and checks that `./client`, `main`, the bundle patch, the
+installer and every promised file resolve, and that the version is a plain x.y.z because
+`tools/publish-release.ps1` derives the release tag from it.
+
 ## 0.1.3 — a Settings pane
 
 Settings → **Agents Notch** now exists, with every knob the row config has: size, anchor, display, rows,
