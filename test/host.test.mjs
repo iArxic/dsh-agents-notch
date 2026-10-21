@@ -88,6 +88,11 @@ function startHost({ entries = [], events = [], port = 0, config = {} } = {}) {
 	apply(ctx, {
 		stateDir: dir,
 		spawnWindow: false,
+		// NEVER fetch in a test: once the manifest names a repository, the auto-download would reach
+		// GitHub from a unit test (measured: it did, and three "no window anywhere" tests started
+		// failing because the fetch answered instead of the report). Off by default here; the one test
+		// that wants the fetch path switches it on and injects nothing.
+		autoDownload: false,
 		routePath: "/agents-notch/state",
 		finishedRoutePath: "/session-finished/api/status",
 		manualPath: join(dir, "manual.json"),
@@ -637,12 +642,12 @@ test("`settings.showDone: false` takes finished rows off the board, and the coun
 	assert.equal(shown.settings.showDone, false);
 });
 
-test("with no repository in the manifest the host says it cannot fetch, then reports the fix", async () => {
-	// The auto-download derives its URL from `repository`. This package has none until it is
-	// published, and inventing a URL would 404 in a way that reads like "the plugin is broken".
-	const dir = mkdtempSync(join(tmpdir(), "agents-notch-fetch-skip-"));
+test("with autoDownload off the host never reaches for the network, and still prints the by-hand fix", async () => {
+	// The manifest DOES name a repository now, so the only thing standing between a unit test and a
+	// 65 MB download is this switch. `startHost` sets it false; this asserts the report says so.
+	const dir = mkdtempSync(join(tmpdir(), "agents-notch-no-fetch-"));
 	const host = startHost({
-		config: { stateDir: dir, spawnWindow: true, exePath: join(dir, "no-such-window.exe"), exeRoot: dir, pollMs: 40, report: true },
+		config: { stateDir: dir, spawnWindow: true, exePath: join(dir, "no-such-window.exe"), exeRoot: dir, pollMs: 40, report: true, autoDownload: false },
 	});
 	const events = await until(async () => {
 		if (!existsSync(join(dir, "host-report.jsonl"))) return null;
@@ -652,11 +657,8 @@ test("with no repository in the manifest the host says it cannot fetch, then rep
 	for (const dispose of host.disposers) dispose();
 	assert.notEqual(events, null, "the host never got as far as reporting the missing window");
 	const names = events.map((event) => event.event);
-	assert.equal(names.includes("window-fetch-skipped"), true, `expected a skip, saw ${names.join(",")}`);
-	const skipped = events.find((event) => event.event === "window-fetch-skipped");
-	assert.match(skipped.reason, /repository/);
-	// …and the human still gets the by-hand command, which is the whole point of the fallback.
+	assert.equal(names.some((name) => name.startsWith("window-fetch")), false, `no fetch may happen: ${names.join(",")}`);
 	const missing = events.find((event) => event.event === "window-missing");
-	assert.equal(missing.autoDownload, true);
+	assert.equal(missing.autoDownload, false);
 	assert.match(missing.fix, /install-window\.ps1/);
 });

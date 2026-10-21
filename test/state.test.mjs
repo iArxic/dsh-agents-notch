@@ -356,3 +356,26 @@ test("the human's verdict is honoured in both retire modes, and `working` ignore
 		assert.deepEqual(snapshot([done, working], { finished: marked }).map((row) => row.id), ["working"]);
 	}
 });
+
+test("a question is attention, not work — and its answer puts the session back", () => {
+	// Measured 2026-10-21: `ask_user_question` arrives as an ordinary `tool/call` and there is NO
+	// question-typed event, so a reducer that only watches `approval/asked` leaves the board saying
+	// "working" while the agent waits for the human. This is the one state the notch exists for.
+	const rec = createRecord("session-q");
+	applyEvent(rec, { type: "tool/call", data: { name: "ask_user_question", callId: "call_q", arguments: "{}" } });
+	assert.equal(rec.status, "attention");
+	assert.deepEqual(rec.approval, { toolName: "question", reason: null });
+	assert.equal(rec.steps, 1, "the call still counts as a step");
+	applyEvent(rec, { type: "tool/result", data: { toolCallId: "call_q" } });
+	assert.equal(rec.status, "working");
+	assert.equal(rec.approval, null);
+});
+
+test("a different call's result does not answer the question, and the next tool call does", () => {
+	const rec = createRecord("session-q2");
+	applyEvent(rec, { type: "tool/call", data: { name: "ask_user_question", callId: "q1" } });
+	applyEvent(rec, { type: "tool/result", data: { toolCallId: "something-else" } });
+	assert.equal(rec.status, "attention", "an unrelated result must not clear a question");
+	applyEvent(rec, { type: "tool/call", data: { name: "pwsh", callId: "t1" } });
+	assert.equal(rec.status, "working", "the model moving on means the human answered");
+});
