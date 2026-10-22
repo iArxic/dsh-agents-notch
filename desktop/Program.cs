@@ -668,8 +668,15 @@ internal static class Live
         foreach (var s in sessions.OrderBy(s => Urgency(s.Status)).ThenByDescending(s => s.Since)
                                   .Take(Math.Clamp(maxRows, Settings.RowsMin, Settings.RowsMax)))
         {
+            // The title is the session; the TAIL is the reason it is stuck.
+            //
+            // This is the only place the human is told WHY something waits, and `approval.reason` used
+            // to be parsed into `ApprovalReason` and thrown away — the row led with the tool's name
+            // instead, which is `pwsh` for every approval and says nothing. The contract's own example
+            // is `reason: "wants to delete 14 files under src/"`, and the fixtures carry exactly that.
+            // The tool's name is the fallback when a reason is absent, because "pwsh" is still better
+            // than nothing.
             var text = s.Title.Length > 0 ? s.Title : ProjectOf(s);
-            if (!string.IsNullOrEmpty(s.ApprovalTool)) text = $"{s.ApprovalTool}: {text}";
             bool teammate = s.Origin == "subagent";
             // R6 — a row says nothing while it is healthy. The one thing it may say is, for a session
             // and not a teammate, how many sessions it has delegated.
@@ -681,7 +688,16 @@ internal static class Live
             // ended badly is an `error` row, with its own badge and ring — that is where a failure
             // belongs, and nothing on this board counts anything else.
             string tail = "";
-            if (!teammate && teammates.TryGetValue(s.Id, out int kids))
+            if (s.Status == "attention")
+            {
+                // Why it is waiting outranks how many sessions it delegated: both are facts, only one
+                // is a question for the human. The tail MEASURES itself first and the title gives way
+                // (Draw.cs), so a reason capped at 20 characters leaves the title readable — a 34-char
+                // reason starved it to "Argon 0…", measured on this fixture.
+                string reason = s.ApprovalReason is { Length: > 0 } r ? r : s.ApprovalTool ?? "";
+                tail = Trim(reason, 20);
+            }
+            else if (!teammate && teammates.TryGetValue(s.Id, out int kids))
             {
                 tail = kids == 1 ? "1 teammate" : $"{kids} teammates";
             }
@@ -908,6 +924,12 @@ internal sealed class OverlayWindow : Window
     double _designH = WinH;
     /// <summary>Where the last `Place.Resolve` put the window — logged, and what `--probe-rect` prints.</summary>
     Placement? _placement;
+    /// <summary>
+    /// The monitor the notch itself sits on. The full-screen test compares the foreground window's
+    /// monitor against this one, so a game on display 1 cannot hide the notch on display 2. Recaptured
+    /// on every placement, because `settings.screen` can move it at runtime.
+    /// </summary>
+    IntPtr _ownMonitor;
 
     readonly Canvas _root = new();
     /// <summary>
@@ -1252,6 +1274,7 @@ internal sealed class OverlayWindow : Window
         var p = Place.Resolve(_settings, Width, Height);
         _placement = p;
         Native.Move(h, p.WindowPxX, p.WindowPxY);
+        _ownMonitor = Native.MonitorOf(h);
         Log.Write($"placed — {p.Monitor} screen={_settings.Screen} anchor={_settings.Anchor}" +
                   $" dip={Width:0}×{Height:0} px={p.WindowPxX},{p.WindowPxY} {p.WindowPxW}×{p.WindowPxH}" +
                   $" dpi={p.DpiMonitor}(sys {p.DpiSystem}) scale={_scale:0.##}");
@@ -2290,9 +2313,13 @@ internal sealed class OverlayWindow : Window
         // still answered 2 (BUSY) — the foreground app was OBS. Hiding on it would hide the pill
         // always. The geometric test — does the foreground window cover its whole monitor — is
         // the honest signal, and it catches both an F11 browser and an exclusive-fullscreen game.
+        // It excludes the shell window (Win+D shows the desktop, whose bounds ARE the monitor rect)
+        // and answers per monitor, so it only speaks about the display the notch is on.
         int quns = Native.UserNotificationState();
-        bool geoFull = Native.ForegroundIsFullscreen();
-        bool qunsHide = quns is 1 or 3 or 4;      // 1 = session locked, 3 = D3D fullscreen, 4 = presenting
+        bool geoFull = Native.ForegroundIsFullscreen(_ownMonitor);
+        // Session lock (1) and presentation mode (4) are machine-wide by definition. D3D fullscreen
+        // (3) belongs to the display the game is on, so it only hides the notch when that is ours.
+        bool qunsHide = quns is 1 or 4 || (quns == 3 && Native.ForegroundOnOurMonitor(_ownMonitor));
         _fullscreen = geoFull || qunsHide;
 
         // `settings.hideFullscreen` (default true) is the switchable form of the old

@@ -171,11 +171,13 @@ The remote is the safety net: `git fetch && git reset --hard origin/master`.
 
 ## 6. State of the work, and what is still unverified
 
-Verified on this machine: 57 tests; the host fetching its own window from the release (hash checked);
+Verified on this machine: 60 tests; the host fetching its own window from the release (hash checked);
 `install-window.ps1` from a URL; both plugin install paths (registry and local link); the settings route
-(GET/POST/clamp/reset/unknown-key, and the 500 path when the write cannot land); the window's placement,
-states and stills of every state, including the empty board a missing state file now draws
-(`--state <nonexistent> --shot`, tab `host offline`, 0 bots).
+(GET/POST/clamp/reset/unknown-key, the 500 path when the write cannot land, and the 415/403 refusals of a
+non-JSON or cross-origin POST); the window's placement, states and stills of every state, including the
+empty board a missing state file now draws (`--state <nonexistent> --shot`, tab `host offline`, 0 bots)
+and an approval row that shows its reason (`--state desktop/fixtures/no-budget.json --open`, row
+`Argon 0/4 on lapto… · wants to delete 14…`).
 
 **Not verified, do not claim it:** the tray *Quit overlay* click (host-side unit test only), fullscreen
 hiding (needs a full-screen app), mixed-DPI / multi-monitor (this box is one 1920×1080 at 120 DPI), and

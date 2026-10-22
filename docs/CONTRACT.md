@@ -172,3 +172,9 @@ A POST is the only place in this plugin where a request changes anything, it wri
 beside the state, and it refuses unknown keys **by name** rather than dropping them silently. The host
 calls its own `flush()` afterwards, so the notch applies the change on the window's next tick — no
 restart, no re-mount.
+
+A POST must carry `content-type: application/json`; anything else is refused with **415**, because a
+`text/plain` body is a "simple request" that a browser sends with no preflight. A request whose `Origin`
+is not this harness's own page, or whose `Sec-Fetch-Site` names a cross-site relationship, is refused
+with **403**: plugin routes are not cookie-gated (measured), so this door carries its own lock. A local
+tool that sends neither header is allowed — it is already inside the trust boundary.

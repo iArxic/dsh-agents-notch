@@ -136,11 +136,12 @@ async function finishedServer(reply = 200) {
  * 405, unknown key, reset, non-JSON, the clamp echo, and now the failed-write path — was verified by
  * hand only. A handler that throws synchronously rejects the promise instead of hanging the test.
  */
-function callRoute(route, { method = "GET", body = "" } = {}) {
+function callRoute(route, { method = "GET", body = "", headers = {} } = {}) {
 	return new Promise((resolve, reject) => {
 		const handlers = new Map();
 		const req = {
 			method,
+			headers,
 			setEncoding: () => {},
 			on: (name, handler) => { handlers.set(name, handler); },
 			destroy: () => {},
@@ -282,6 +283,10 @@ test("the context budget is null published — and a positive one is published a
 	assert.deepEqual(contextOf({ contextBudget: 0 }), { budget: null, hotAt: 0.5 });
 	assert.deepEqual(contextOf({ contextBudget: -5 }), { budget: null, hotAt: 0.5 });
 	assert.deepEqual(contextOf({ contextBudget: "nonsense" }), { budget: null, hotAt: 0.5 });
+	// YAML spells `yes` as a boolean, and `Number(true)` is 1 — which would have published a budget of
+	// ONE token. A denominator nobody chose is exactly what rule 1 forbids, so a boolean is absent.
+	assert.deepEqual(contextOf({ contextBudget: true }), { budget: null, hotAt: 0.5 });
+	assert.deepEqual(contextOf({ contextBudget: false }), { budget: null, hotAt: 0.5 });
 	assert.deepEqual(contextOf({ contextBudget: 1_000_000 }), { budget: 1_000_000, hotAt: 0.5 });
 	assert.deepEqual(contextOf({ contextBudget: "250000" }), { budget: 250_000, hotAt: 0.5 });
 	// hotAt is the fraction where the bar turns amber; outside (0,1) it is not a fraction, so the
@@ -382,13 +387,21 @@ test("a settings write that fails answers 500 instead of throwing out of the har
 	// A directory where the settings file belongs: the tmp file writes, the rename cannot land.
 	mkdirSync(join(host.dir, "settings.json"));
 
-	const write = await callRoute(route, { method: "POST", body: JSON.stringify({ opacity: 0.5 }) });
+	const write = await callRoute(route, {
+		method: "POST",
+		body: JSON.stringify({ opacity: 0.5 }),
+		headers: { "content-type": "application/json" },
+	});
 	assert.equal(write.status, 500, "a failed write is not a success");
 	assert.equal(write.body.ok, false);
 	assert.match(write.body.error, /could not write/, "and it names what failed");
 
 	// Reset goes through the same door, and may not report "ok" for a file it could not clear.
-	const reset = await callRoute(route, { method: "POST", body: JSON.stringify({ reset: true }) });
+	const reset = await callRoute(route, {
+		method: "POST",
+		body: JSON.stringify({ reset: true }),
+		headers: { "content-type": "application/json" },
+	});
 	assert.equal(reset.status, 500);
 	assert.equal(reset.body.ok, false);
 
@@ -397,6 +410,54 @@ test("a settings write that fails answers 500 instead of throwing out of the har
 	for (const dispose of host.disposers) dispose();
 	assert.equal(after.status, 200, "the route still answers after a failed write");
 	assert.equal(after.body.settings.opacity, 1, "and nothing was stored");
+});
+
+test("the settings door refuses a cross-origin or non-JSON POST", async () => {
+	// The route is not cookie-gated (measured, CONTRACT), so any page in the human's browser can
+	// reach it. A `text/plain` body is a "simple request": the browser sends it with no preflight,
+	// which is exactly how a stray tab used to be able to rewrite the notch's settings.
+	const host = startHost({ entries: [], port: 51234 });
+	const route = host.routes.find((candidate) => candidate.path === "/agents-notch/settings");
+	const patch = JSON.stringify({ showDone: false });
+
+	const form = await callRoute(route, {
+		method: "POST",
+		body: patch,
+		headers: { "content-type": "text/plain;charset=UTF-8" },
+	});
+	assert.equal(form.status, 415, "a simple-request body is not accepted");
+
+	// Even a JSON body is refused when the headers a page cannot forge say it came from elsewhere.
+	const cross = await callRoute(route, {
+		method: "POST",
+		body: patch,
+		headers: { "content-type": "application/json", "sec-fetch-site": "cross-site", origin: "https://evil.example" },
+	});
+	assert.equal(cross.status, 403);
+	const foreign = await callRoute(route, {
+		method: "POST",
+		body: patch,
+		headers: { "content-type": "application/json", origin: "https://evil.example" },
+	});
+	assert.equal(foreign.status, 403);
+
+	// The pane's own call: same origin, JSON.
+	const own = await callRoute(route, {
+		method: "POST",
+		body: patch,
+		headers: { "content-type": "application/json; charset=utf-8", "sec-fetch-site": "same-origin", origin: "http://127.0.0.1:51234" },
+	});
+	// A local tool (curl) sends neither header, and stays allowed — it is already inside the trust
+	// boundary, and refusing it would make the route undebuggable.
+	const tool = await callRoute(route, {
+		method: "POST",
+		body: JSON.stringify({ showDone: true }),
+		headers: { "content-type": "application/json" },
+	});
+	for (const dispose of host.disposers) dispose();
+	assert.equal(own.status, 200);
+	assert.equal(own.body.settings.showDone, false);
+	assert.equal(tool.status, 200, "a headerless local POST is still allowed");
 });
 
 test("the edge reaches the row once the session is working", async () => {

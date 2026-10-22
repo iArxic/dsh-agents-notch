@@ -46,6 +46,8 @@ internal static class Native
     private static extern int SHQueryUserNotificationState(out int state);
 
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern IntPtr GetShellWindow();
+    [DllImport("user32.dll")] private static extern IntPtr GetDesktopWindow();
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] private static extern bool GetCursorPos(out POINT p);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
@@ -58,6 +60,8 @@ internal static class Native
     [DllImport("user32.dll")] private static extern bool SetWindowDisplayAffinity(IntPtr h, uint affinity);
     [DllImport("user32.dll")] private static extern bool SetProcessDpiAwarenessContext(IntPtr value);
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr h, int attr, out RECT r, int size);
+    [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
+    private static extern int DwmGetWindowAttributeInt(IntPtr h, int attr, out int value, int size);
     [DllImport("user32.dll")] private static extern bool AllowSetForegroundWindow(int processId);
 
     /// <summary>
@@ -80,6 +84,7 @@ internal static class Native
     internal const uint SWP_NOOWNERZORDER = 0x0200;
 
     internal const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+    internal const int DWMWA_CLOAKED = 14;
     internal const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
 
     internal const int QUNS_NOT_PRESENT = 1;
@@ -151,23 +156,58 @@ internal static class Native
     /// </summary>
     internal static int UserNotificationState() { SHQueryUserNotificationState(out var s); return s; }
 
-    /// <summary>True when the foreground window covers its whole monitor (within ±2 px).</summary>
-    internal static bool ForegroundIsFullscreen()
+    /// <summary>
+    /// True when the foreground window covers ITS whole monitor (within ±2 px) — and, when
+    /// <paramref name="ownMonitor"/> is given, only if that monitor is the notch's own.
+    ///
+    /// Three exclusions, each measured:
+    ///
+    ///   - the SHELL window. The desktop's DWM bounds are exactly the monitor rect (measured here:
+    ///     `GetShellWindow()` reports 0,0,1920,1080), so clicking the desktop or pressing Win+D was
+    ///     indistinguishable from a full-screen game and the notch vanished;
+    ///   - a CLOAKED window (another virtual desktop, a suspended UWP app) covers nothing visible;
+    ///   - a window on ANOTHER monitor. `settings.screen` says which display the notch lives on, and a
+    ///     game on display 1 must not remove it from display 2 where the human is working.
+    /// </summary>
+    internal static bool ForegroundIsFullscreen(IntPtr ownMonitor = default)
     {
         var fg = GetForegroundWindow();
         if (fg == IntPtr.Zero) return false;
+        if (fg == GetShellWindow() || fg == GetDesktopWindow()) return false;
+
+        var mon = MonitorFromWindow(fg, 2 /* MONITOR_DEFAULTTONEAREST */);
+        if (ownMonitor != IntPtr.Zero && mon != IntPtr.Zero && mon != ownMonitor) return false;
+
+        // A cloaked window is on another virtual desktop, or hosted but not shown.
+        if (DwmGetWindowAttributeInt(fg, DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0 && cloaked != 0) return false;
 
         RECT r;
         if (DwmGetWindowAttribute(fg, DWMWA_EXTENDED_FRAME_BOUNDS, out r, Marshal.SizeOf<RECT>()) != 0)
             GetWindowRect(fg, out r);
+        if (r.Right <= r.Left || r.Bottom <= r.Top) return false;   // zero-area covers nothing
 
-        var mon = MonitorFromWindow(fg, 2 /* MONITOR_DEFAULTTONEAREST */);
         var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
         if (!GetMonitorInfo(mon, ref mi)) return false;
 
         const int tol = 2;
         return r.Left <= mi.rcMonitor.Left + tol && r.Top <= mi.rcMonitor.Top + tol
             && r.Right >= mi.rcMonitor.Right - tol && r.Bottom >= mi.rcMonitor.Bottom - tol;
+    }
+
+    /// <summary>The monitor a window (or the notch itself) is on, resolved now.</summary>
+    internal static IntPtr MonitorOf(IntPtr h) => h == IntPtr.Zero ? IntPtr.Zero : MonitorFromWindow(h, 2);
+
+    /// <summary>
+    /// Is the foreground window on the notch's monitor? "Unknown" answers YES, so a failure to read a
+    /// handle can only ever hide the notch the way it always did — never invent a reason to show it.
+    /// </summary>
+    internal static bool ForegroundOnOurMonitor(IntPtr ownMonitor)
+    {
+        if (ownMonitor == IntPtr.Zero) return true;
+        var fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero) return true;
+        var mon = MonitorFromWindow(fg, 2);
+        return mon == IntPtr.Zero || mon == ownMonitor;
     }
 
     /// <summary>The work area of the monitor the window is on (taskbar excluded).</summary>

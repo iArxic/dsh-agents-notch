@@ -24,6 +24,7 @@ import {
 	STATUS,
 	applyEvent,
 	createRecord,
+	eventTime,
 	fullContextTokens,
 	identityOf,
 	projectOf,
@@ -379,4 +380,33 @@ test("a different call's result does not answer the question, and the next tool 
 	assert.equal(rec.status, "attention", "an unrelated result must not clear a question");
 	applyEvent(rec, { type: "tool/call", data: { name: "pwsh", callId: "t1" } });
 	assert.equal(rec.status, "working", "the model moving on means the human answered");
+});
+
+test("a replayed event is stamped with WHEN it happened, not with the replay", () => {
+	// The host replays a session's whole log when it mounts (`sweep()`), because a session that was
+	// already running has no live events in this process. Passing no time made every replayed event
+	// land at "now": a turn that ended yesterday was published as `since: <boot>`, so the row said
+	// "finished 0s ago", it had the newest `since` on the board (and so took the big bot and replayed
+	// the finish squint), and under `retire: "timer"` it was handed a fresh 15 minutes on every
+	// restart instead of already being history.
+	const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+	const rec = createRecord("session-replayed");
+	applyEvent(rec, { type: "turn/start", time: twoDaysAgo, data: { turn: 1 } });
+	applyEvent(rec, { type: "turn/end", time: twoDaysAgo + 60_000, data: { reason: { kind: "completed" } } });
+	assert.equal(rec.status, STATUS.DONE);
+	assert.equal(rec.since, twoDaysAgo + 60_000, "the row remembers when it finished, not when it was read");
+
+	// The fallback therefore sees two days, not fifteen minutes — which is the whole point of it.
+	assert.equal(retiredRows([rec], { retire: "timer", now: Date.now() }).has(rec.id), true);
+
+	// The envelope is not this plugin's contract. A value that cannot be epoch-ms is IGNORED and the
+	// arrival clock is used — never a date in 1970, never one in 2050.
+	assert.ok(Number.isNaN(eventTime({})) && Number.isNaN(eventTime(null)));
+	assert.equal(eventTime({ time: twoDaysAgo }), twoDaysAgo);
+	const odd = createRecord("session-odd");
+	applyEvent(odd, { type: "turn/start", time: 42, data: {} }, 5_000);
+	assert.equal(odd.since, 5_000, "a monotonic-looking value is not read as UTC");
+	const future = createRecord("session-future");
+	applyEvent(future, { type: "turn/start", time: Date.now() + 1e10, data: {} }, 5_000);
+	assert.equal(future.since, 5_000, "a clock that jumped is not a timestamp");
 });
