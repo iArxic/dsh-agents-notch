@@ -151,10 +151,15 @@ A published `AgentsNotch.exe` extracts its native libraries **before `Main`**. W
 The host therefore spawns it with `DOTNET_BUNDLE_EXTRACT_BASE_DIR=<stateDir>\bundle`. Running the
 published exe by hand without that variable reproduces the silent death.
 
-### 5.6 `.git` in this folder has been damaged twice
+### 5.6 `.git` in this folder has been damaged three times
 
-Both times `HEAD`, `config` and `index` vanished while `objects/` and `refs/` survived, shortly after
-plugin install/remove activity pointing at the directory. Recovery without data loss:
+Each time `HEAD`, `config` and `index` vanished while `objects/` and `refs/` survived. The third time
+caught the cause: a profile's `node_modules\dsh-agents-notch` was a **junction to this repo** (left by a
+local-link install), and installing the package from the registry made pnpm rename over it — it failed
+with `EPERM` and took those files with it. Never install from the registry into a profile that links
+this folder: remove the link first, with a non-recursive delete of the junction only
+(`[IO.Directory]::Delete($path, $false)`), never a recursive one, which follows it into the repo.
+Recovery without data loss:
 
 ```powershell
 "ref: refs/heads/master`n" | Set-Content .git\HEAD -NoNewline
