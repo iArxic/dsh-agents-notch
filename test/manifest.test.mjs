@@ -57,7 +57,7 @@ test("every file a consumer is promised is really shipped", () => {
 		"cordis.patch.yml",
 		"tools/install-window.ps1",
 		"docs/CONTRACT.md",
-		"docs/banner.png",
+		"docs/hero.png",
 		"CHANGELOG.md",
 		"README.md",
 		"LICENSE",

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — a README that shows the thing
+
+The README opens with a hero, a GIF of the real motion and a sheet of the four states, all drawn by the
+window itself: `--record <dir>` writes the motion frame by frame on its own clock, `--open-at` /
+`--close-at` unfold the board on a schedule, and `tools/readme-media.py` lays the renders out. The
+reference sections (every key, the manual install) fold away, and a short 中文 section closes it.
+
+`npm test` runs again on Node 25, which no longer accepts a directory for `node --test`: the script
+passes a glob instead.
+
 ## 0.1.5 — the finished face is the `^^`, with its ring
 
 Two symptoms, one bug: when the transition key became `id|status`, the pose branches kept comparing it

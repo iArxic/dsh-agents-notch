@@ -38,7 +38,8 @@ desktop/fixtures/*.json  state files a still can be rendered from, one per state
 tools/publish.ps1          single-file window build + .sha256
 tools/install-window.ps1   install the window from a release URL, a path, or dist/
 tools/publish-release.ps1  push, tag, GitHub release + assets, npm publish
-tools/design-banner*.ps1   the repo banner and its variants (GDI+, no browser)
+tools/design-banner*.ps1   the old banner and its variants (GDI+, no browser)
+tools/readme-media.py      every README picture: stills (`shots`), the demo film (`record`), layout (`art`)
 ```
 
 ## 2. The loop
@@ -58,6 +59,15 @@ desktop\bin\Release\net9.0-windows\AgentsNotch.exe --state desktop\fixtures\work
 `--open` draws the board instead of just the tab; `--probe-rect` prints the resolved placement as JSON;
 `--log <file>` writes the window's own account of what it drew. **Always read the log** — the window
 says `board drawn — tab "…" title "…" sub "…"` and, on a state change, `pose — front a|done -> b|done`.
+
+`--record <dir>` writes one PNG per frame on a clock that advances one frame per frame written (a 2×
+render of the board takes ~0.5 s, which on the real clock made a 2 fps film and starved the poll timer);
+`--open-at`/`--close-at <ms>` unfold and fold the board on that clock, as a hover would.
+`tools/readme-media.py` drives it and regenerates every picture in the README — Pillow only lays the
+window's own renders onto a backdrop. Two things it learned: `since` must be an **integer** (the window
+reads `1.79e12` written as a float as `0`, so every age says `0s` and the spotlight never fires), and an
+open board pins its front row, so a story whose finish should reach the big bot has to finish the row
+that is already in front.
 
 Live work on the machine:
 

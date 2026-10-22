@@ -5,6 +5,7 @@
 //                   [--rule any|games] [--hide-tab-fullscreen] [--parent-pid <pid>]
 //                   [--pin <n>] [--dismiss <n>] [--freeze <ms>] [--fps <n>] [--no-effects]
 //                   [--ring <0..1>] [--arrive <0..1>] [--fold <0..1>]
+//                   [--record <dir>] [--record-ms <ms>] [--open-at <ms>] [--close-at <ms>]
 //
 // The shape the human approved: a slim tab hangs from the top of the screen at all times and
 // carries the summary; the board expands under it on hover, with an animation. The window sits
@@ -97,6 +98,16 @@ internal sealed class Options
     public double Ring = -1;                // ring sweep 0..1 on every tab bot
     public double Arrive = -1;              // bot arrival 0..1
     public double Fold = -1;                // row fold 0..1 (needs --dismiss)
+    /// <summary>
+    /// `--record <dir>`: every frame the motion draws, as `f0000.png`… plus `frames.tsv` (frame,
+    /// ms since start), then exit after `--record-ms`. The README's GIF is cut from these, so it
+    /// shows the window's own motion rather than a re-enactment of it.
+    /// </summary>
+    public string? RecordDir;
+    public double RecordMs = 6000;
+    // the unfold a hover would cause, on a schedule — a recording has no pointer to hover with
+    public double OpenAtMs = -1;
+    public double CloseAtMs = -1;
 
     public static Options Parse(string[] args)
     {
@@ -123,6 +134,10 @@ internal sealed class Options
                 case "--fps": if (i + 1 < args.Length && int.TryParse(args[++i], out var fps)) o.DesiredFps = fps; break;
                 case "--no-effects": o.NoEffects = true; break;
                 case "--shot": if (i + 1 < args.Length) o.ShotPath = args[++i]; break;
+                case "--record": if (i + 1 < args.Length) o.RecordDir = args[++i]; break;
+                case "--record-ms": if (i + 1 < args.Length && double.TryParse(args[++i], out var rms)) o.RecordMs = rms; break;
+                case "--open-at": if (i + 1 < args.Length && double.TryParse(args[++i], out var oa)) o.OpenAtMs = oa; break;
+                case "--close-at": if (i + 1 < args.Length && double.TryParse(args[++i], out var ca)) o.CloseAtMs = ca; break;
                 case "--pin": if (i + 1 < args.Length && int.TryParse(args[++i], out var pin)) o.PinIndex = pin; break;
                 case "--dismiss": if (i + 1 < args.Length && int.TryParse(args[++i], out var dis)) o.DismissIndex = dis; break;
                 default: Log.Write("unknown argument: " + args[i]); break;
@@ -1122,29 +1137,74 @@ internal sealed class OverlayWindow : Window
                 // without this the card photographs at opacity 0 and every round of stills silently
                 // shows a closed board (found 2026-10-21, from a round that came out tab-only).
                 Tick();
-                // 4× the window it would have been on screen — scale included, because `_host` is
-                // the element that carries the LayoutTransform. Measuring and arranging it at the
-                // window's own DIP size is what makes a scale-1.5 still show the scaled notch rather
-                // than the design drawn small in a big bitmap.
-                const double zoom = 4;
-                double w = double.IsFinite(Width) && Width > 0 ? Width : WinW;
-                double h = double.IsFinite(Height) && Height > 0 ? Height : _designH;
-                _host.Measure(new Size(w, h));
-                _host.Arrange(new Rect(0, 0, w, h));
-                _host.UpdateLayout();
-                var rtb = new RenderTargetBitmap(
-                    (int)Math.Round(w * zoom), (int)Math.Round(h * zoom), 96 * zoom, 96 * zoom, PixelFormats.Pbgra32);
-                rtb.Render(_host);
-                var enc = new PngBitmapEncoder();
-                enc.Frames.Add(BitmapFrame.Create(rtb));
-                using (var fs = File.Create(_opt.ShotPath!)) enc.Save(fs);
-                Log.Write($"shot written — {_opt.ShotPath} ({rtb.PixelWidth}×{rtb.PixelHeight})" +
+                var (pw, ph) = RenderPng(_opt.ShotPath!, 4);
+                Log.Write($"shot written — {_opt.ShotPath} ({pw}×{ph})" +
                           $" scale={_scale:0.##} tab=\"{_data.TabText}\" open={_p:0.##}");
             }
             catch (Exception e) { Log.Write("shot failed: " + e); }
             Close();
         };
         timer.Start();
+    }
+
+    /// <summary>
+    /// `zoom`× the window it would have been on screen — scale included, because `_host` is the
+    /// element that carries the LayoutTransform. Measuring and arranging it at the window's own DIP
+    /// size is what makes a scale-1.5 still show the scaled notch rather than the design drawn small
+    /// in a big bitmap.
+    /// </summary>
+    private (int W, int H) RenderPng(string path, double zoom)
+    {
+        double w = double.IsFinite(Width) && Width > 0 ? Width : WinW;
+        double h = double.IsFinite(Height) && Height > 0 ? Height : _designH;
+        _host.Measure(new Size(w, h));
+        _host.Arrange(new Rect(0, 0, w, h));
+        _host.UpdateLayout();
+        var rtb = new RenderTargetBitmap(
+            (int)Math.Round(w * zoom), (int)Math.Round(h * zoom), 96 * zoom, 96 * zoom, PixelFormats.Pbgra32);
+        rtb.Render(_host);
+        var enc = new PngBitmapEncoder();
+        enc.Frames.Add(BitmapFrame.Create(rtb));
+        using (var fs = File.Create(path)) enc.Save(fs);
+        return (rtb.PixelWidth, rtb.PixelHeight);
+    }
+
+    int _recordFrame;
+    double _recordT = -1;           // the motion's clock while recording, in seconds; -1 = real time
+
+    /// <summary>
+    /// --record: one PNG per frame at `--fps` (default 30), on a clock that advances one frame per
+    /// frame written. Rendering the board with its glows at 2× takes ~0.5 s, so on the real clock a
+    /// recording was 2 fps and starved the poll timer; on this one the motion is exactly the motion,
+    /// however slow the renders are. The state is read every frame for the same reason, and
+    /// `frames.tsv` stamps each frame in motion-clock ms so a driver can schedule against it.
+    /// </summary>
+    private void RecordFrame()
+    {
+        double step = 1.0 / (_opt.DesiredFps > 0 ? _opt.DesiredFps : 30);
+        if (_recordT < 0)
+        {
+            _recordT = _sw.Elapsed.TotalSeconds;
+            Directory.CreateDirectory(_opt.RecordDir!);
+            File.WriteAllText(Path.Combine(_opt.RecordDir!, "frames.tsv"), "frame\tms\n");
+        }
+        if (_recordFrame * step * 1000 > _opt.RecordMs)
+        {
+            Log.Write($"record done — {_recordFrame} frames in {_opt.RecordDir}");
+            CompositionTarget.Rendering -= OnRendering;
+            Close();
+            return;
+        }
+        try
+        {
+            string name = $"f{_recordFrame:D4}.png";
+            RenderPng(Path.Combine(_opt.RecordDir!, name), 2);
+            File.AppendAllText(Path.Combine(_opt.RecordDir!, "frames.tsv"), $"{name}\t{_recordT * 1000:0}\n");
+            _recordFrame++;
+            _recordT += step;
+            PollState();
+        }
+        catch (Exception e) { Log.Write("record failed: " + e.Message); Close(); }
     }
 
     /// <summary>
@@ -1793,11 +1853,12 @@ internal sealed class OverlayWindow : Window
             _lastTickMs = nowMs;
         }
         Tick();
+        if (_opt.RecordDir is not null) RecordFrame();
     }
 
     private void Tick()
     {
-        double t = _sw.Elapsed.TotalSeconds;
+        double t = _recordT >= 0 ? _recordT : _sw.Elapsed.TotalSeconds;
         double rawGapMs = _lastT < 0 ? 0 : (t - _lastT) * 1000;
         double dt = Math.Min(0.1, t - _lastT);
         _lastT = t; _t = t;
@@ -1811,6 +1872,11 @@ internal sealed class OverlayWindow : Window
         double st = _motionOff ? StillTime : t;
 
         // the board unfolds on hover and folds away when the pointer leaves
+        if (_opt.OpenAtMs >= 0)
+        {
+            double sinceStart = t * 1000;
+            _forceOpen = sinceStart >= _opt.OpenAtMs && (_opt.CloseAtMs < 0 || sinceStart < _opt.CloseAtMs);
+        }
         bool mayOpen = _forceOpen || _want || t < _collapseAt;
         if (mayOpen && _fullscreen && !_forceShow) mayOpen = false;
         double target = mayOpen ? 1 : 0;
