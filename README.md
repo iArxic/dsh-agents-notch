@@ -120,8 +120,10 @@ The window is one self-contained file. No .NET runtime, no prerequisites.
 ## Install
 
 ```powershell
-dsh plugin --profile <profile> add dsh-agents-notch     # or the app's own plugin manager
+dsh plugin --profile web add dsh-agents-notch
 ```
+
+Running the harness under another profile? Put its name in place of `web`.
 
 That is the whole install. The plugin is ~30 KB of JavaScript; the 65 MB window does not ride in the
 tarball, because every version bump would re-upload it and every update re-download it. Instead the
@@ -267,7 +269,7 @@ the last heartbeat instead of repeating a summary nobody is updating:
 ## Uninstall
 
 ```powershell
-dsh plugin --profile <profile> remove dsh-agents-notch     # or the app's plugin manager
+dsh plugin --profile web remove dsh-agents-notch
 Remove-Item -Recurse "$env:DSH_HOME\state\agents-notch"    # state, log, window binary, unpack cache
 ```
 
@@ -306,7 +308,7 @@ the window's own clock, and lays them out.
 - 设置 → **Agents Notch** 有独立设置页：大小、位置、显示器、行数、不透明度、动效，修改即时生效。
 
 ```powershell
-dsh plugin --profile <profile> add dsh-agents-notch
+dsh plugin --profile web add dsh-agents-notch
 ```
 
 仅支持 **Windows 10/11 x64**。插件本体约 30 KB，首次运行时会从对应版本的 GitHub Release 自动下载窗口程序并校验 SHA256，无需安装 .NET 运行时。
