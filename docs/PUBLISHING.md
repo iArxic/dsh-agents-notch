@@ -88,6 +88,13 @@ Both are one command each and both were exercised locally from the tarball and f
 `dist/win-x64`; the `-Url` branch is the one that has never run against a real release, so run it
 first.
 
+**A fresh release does not install through the harness yet.** The app installs plugins with pnpm under
+`minimumReleaseAge`, so a version published minutes ago is skipped and an older one is installed
+instead. Measured with 0.1.6: the plugin manager installed 0.1.1, the only version on the profile's
+`minimumReleaseAgeExclude` list in `profiles/<profile>/pnpm-workspace.yaml`. To test a release the
+same day, uninstall it in the app and install the exact `dsh-agents-notch@<version>`; asking for an
+exact version is what adds it to that list. Otherwise wait until the version is old enough.
+
 ## 6. Optional, but what "maintained" looks like from outside
 
 - `.github/workflows/test.yml` running `npm test` (there is no CI today, so the README's test line is
