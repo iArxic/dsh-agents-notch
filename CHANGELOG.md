@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.5 — the finished face is the `^^`, with its ring
+
+Two symptoms, one bug: when the transition key became `id|status`, the pose branches kept comparing it
+to a bare state name, so **every** settled state matched nothing and the big bot fell back to the neutral
+idle face — a finished session showed half-open eyes and no state ring, at any moment.
+
+Fixed by keeping the two questions apart: `FrontKey` (`id|status`) decides a TRANSITION, `FrontStatus`
+decides the POSE. A finished session now rests in the `^^` face the design calls for, and the ring is
+seeded on the first painted frame instead of fading up from nothing (a still, and the first 250 ms, used
+to look ringless).
+
+Found by rendering the same fixture from the old and the new binary and comparing the two pictures.
+
 ## 0.1.4 — the pane's browser half actually reaches the app
 
 0.1.3 declared `exports` twice. JSON keeps the LAST block, and the second one had no `./client`, so

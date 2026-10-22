@@ -931,6 +931,7 @@ internal sealed class OverlayWindow : Window
     double _alertStart = -1;      // …when it started asking for you
     double _errorStart = -1;      // …when it failed
     double _ringAlpha;            // the ring fades in on a settled session, out on a working one
+        bool _ringSeeded;            // the first frame snaps the ring instead of fading from 0
     double _lookX, _lookY;
     double _flare;
     double _p;                    // 0 = folded (tab only), 1 = open (the board)
@@ -1841,16 +1842,21 @@ internal sealed class OverlayWindow : Window
         // transition into a settled state starts that state's motion ONCE, and the motion end in a
         // rest pose instead of looping — an overlay that keeps celebrating a session that finished
         // an hour ago is noise.
-        string front = _data.FrontKey;
+        string front = _data.FrontKey;          // identity|status — what the TRANSITION keys on
+        // …and the state alone, which is what the POSE keys on. They are two different questions: a
+        // switch between two sessions in the same state is a transition, but the face to draw is the
+        // state. Comparing the identity to "done" silently matched nothing and every settled state lost
+        // its ring and its eyes.
+        string frontState = _data.FrontStatus;
         if (front != _frontWas)
         {
             // Logged because "the animation did not play" is otherwise unanswerable from outside: this
             // line says which transition the window actually saw, and when.
             if (_frontWas != "") Log.Write($"pose — front {_frontWas} -> {front}");
             _frontWas = front;
-            _finishStart = front == "done" ? t : -1;
-            _alertStart = front == "attention" ? t : -1;
-            _errorStart = front == "error" ? t : -1;
+            _finishStart = frontState == "done" ? t : -1;
+            _alertStart = frontState == "attention" ? t : -1;
+            _errorStart = frontState == "error" ? t : -1;
         }
         // …and with motion off every transition is told it finished 20 s ago, which lands each state
         // on its SETTLED pose: a finished session's rest face, the wide eyes of one waiting on you,
@@ -1879,7 +1885,7 @@ internal sealed class OverlayWindow : Window
         bool arc = false;
         double bend = 0, spread = 1, tilt = 0, ringTarget = 0;
 
-        if (front == "done")
+        if (frontState == "done")
         {
             ringTarget = 1;
             double et = _freezeMs >= 0 ? _freezeMs : poseFrom(_finishStart);
@@ -1892,10 +1898,13 @@ internal sealed class OverlayWindow : Window
                 bend = 1 + .10 * Math.Sin(u * 2 * Math.PI);                            // the hold breathes
             }
             else if (et < 920) { arc = true; open = 0; bend = 1 - Ease((et - 820) / 100.0); }  // shut again
-            else if (et < 1650) open = Ease((et - 920) / 730.0) * .45;                 // reopen, half-lidded
-            else { open = .45 - Math.Min(1, (et - 1650) / 330.0) * .21; ly += .18; }   // and rest
+            // …and it RESTS in the `^^` face. The approved design has a finished session's face BE the
+            // arc; the half-lidded reopen it used to settle into read as "working, but tired" and made a
+            // still frame look like nothing had happened. The arc settles and keeps a slow breath.
+            else if (et < 1650) { open = 0; arc = true; bend = .55 + .45 * Ease((et - 920) / 730.0); }
+            else { open = 0; arc = true; bend = 1.0 + .06 * Math.Sin(et / 700.0); ly += .12; }
         }
-        else if (front == "attention")
+        else if (frontState == "attention")
         {
             ringTarget = 1;
             double et = _freezeMs >= 0 ? _freezeMs : poseFrom(_alertStart);
@@ -1906,7 +1915,7 @@ internal sealed class OverlayWindow : Window
             double bt = et - 700;
             if (bt > 0) { double c = bt % 1300; if (c < 200) open *= 1 - Math.Sin(Math.PI * c / 200.0); }
         }
-        else if (front == "error")
+        else if (frontState == "error")
         {
             ringTarget = 1;
             double k = Ease(Math.Min(1, poseFrom(_errorStart) / 700.0));
@@ -1927,8 +1936,11 @@ internal sealed class OverlayWindow : Window
         if (_flare > 0) glow += 0.30 * _flare;
 
         // the ring fades rather than snapping, and pulses only while it is asking for you
+        // The first frame snaps the ring to its target. A fade that starts at 0 means the first painted
+        // frame of a settled session looks ringless — in a still, and for the ~250 ms before it arrives.
+        if (!_ringSeeded) { _ringSeeded = true; _ringAlpha = ringTarget; }
         _ringAlpha += (ringTarget - _ringAlpha) * Math.Min(1, dt / 0.25);
-        double ringPulse = front == "attention" ? .72 + .28 * Math.Abs(Math.Sin(2 * Math.PI * st / 1.2)) : 1;
+        double ringPulse = frontState == "attention" ? .72 + .28 * Math.Abs(Math.Sin(2 * Math.PI * st / 1.2)) : 1;
         _orb?.SetRing(_ringAlpha, ringPulse);
         PositionContext();
 
