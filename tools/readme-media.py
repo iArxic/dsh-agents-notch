@@ -401,16 +401,14 @@ def framed(name, out):
     print(name, "->", DOCS / out)
 
 
-def demo_gif(width=800, fps=20):
-    """The recorded frames over a wallpaper, one palette per frame. No grain and no dither: a GIF
-    stores only what changed between frames, and noise changes everywhere."""
+def film(width, fps=20):
+    """The recorded frames over a smooth wallpaper, with delays cut from the window's own stamps."""
     rec = OUT / "rec"
     rows = [l.split("	") for l in (rec / "frames.tsv").read_text().splitlines()[1:] if l.strip()]
-    stamps = [(rec / n, float(ms)) for n, ms in rows]
     kept, last = [], -1e9
-    for p, ms in stamps:
-        if ms - last >= 1000 / fps - 1:
-            kept.append((p, ms)); last = ms
+    for n, ms in rows:
+        if float(ms) - last >= 1000 / fps - 1:
+            kept.append((rec / n, float(ms))); last = float(ms)
     union = None
     for p, _ in kept:
         bb = Image.open(p).getchannel("A").point(lambda v: 255 if v > 6 else 0).getbbox()
@@ -419,20 +417,37 @@ def demo_gif(width=800, fps=20):
     l, _, r, b = union
     margin = 60
     W, H = (r - l) + margin * 2, b + 30
-    w2 = width
-    h2 = round(H * w2 / W)
+    size = (width, round(H * width / W))
     smooth = wallpaper(W, H, grain=False)
     frames, delays = [], []
     for i, (p, ms) in enumerate(kept):
         img = Image.open(p).crop((l - margin, 0, r + margin, H))
-        f = Image.alpha_composite(smooth, img).convert("RGB").resize((w2, h2), Image.LANCZOS)
-        frames.append(f.quantize(colors=256, method=Image.MEDIANCUT, dither=Image.NONE))
+        frames.append(Image.alpha_composite(smooth, img).convert("RGB").resize(size, Image.LANCZOS))
         nxt = kept[i + 1][1] if i + 1 < len(kept) else ms + 1600
         delays.append(max(20, int(round((nxt - ms) / 10.0)) * 10))
-    frames[0].save(DOCS / "demo.gif", save_all=True, append_images=frames[1:], duration=delays,
-                   loop=0, optimize=True, disposal=1)
+    return frames, delays
+
+
+def demo_webp(width=1100):
+    """The README's film: full colour, so the wallpaper's gradient and the state colours survive.
+    A GIF has 256 colours a frame, and a gradient behind a black notch spends them all on banding."""
+    frames, delays = film(width)
+    frames[0].save(DOCS / "demo.webp", save_all=True, append_images=frames[1:], duration=delays,
+                   loop=0, quality=88, method=6)
+    kb = (DOCS / "demo.webp").stat().st_size // 1024
+    print(f"demo -> {DOCS / 'demo.webp'} ({len(frames)} frames, {frames[0].size[0]}x{frames[0].size[1]}, {kb} KB)")
+
+
+def demo_gif(width=800):
+    """For places that only take a GIF (Reddit, a discussion). A palette per frame, so whatever state
+    is on screen gets its colours (a shared one spends them on the wallpaper and loses the rings), and
+    dithered, so the gradient does not band. The README uses `demo.webp`, which needs neither."""
+    frames, delays = film(width)
+    q = [f.quantize(colors=256, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG) for f in frames]
+    q[0].save(DOCS / "demo.gif", save_all=True, append_images=q[1:], duration=delays,
+              loop=0, optimize=True, disposal=1)
     kb = (DOCS / "demo.gif").stat().st_size // 1024
-    print(f"demo -> {DOCS / 'demo.gif'} ({len(frames)} frames, {w2}x{h2}, {kb} KB)")
+    print(f"demo -> {DOCS / 'demo.gif'} ({len(q)} frames, {q[0].size[0]}x{q[0].size[1]}, {kb} KB)")
 
 
 def main():
@@ -445,7 +460,7 @@ def main():
     elif cmd == "art":
         hero(); states_sheet(); faces()
         framed("board-nobudget", "board-nobudget.png"); framed("board-stale", "board-stale.png")
-        demo_gif()
+        demo_webp(); demo_gif()
     else:
         sys.exit(__doc__)
 

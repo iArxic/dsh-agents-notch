@@ -16,7 +16,7 @@ that answers one question: which of my sessions needs me right now?**
 
 <br>
 
-<img src="docs/demo.gif" alt="The folded notch with three working bots; one turns amber and the tab says 'needs you'; the board unfolds on it; it goes back to work, finishes with a ^^ face and a green ring, and the board folds away" width="760">
+<img src="docs/demo.webp" alt="The folded notch with three working bots; one turns amber and the tab says 'needs you'; the board unfolds on it; it goes back to work, finishes with a ^^ face and a green ring, and the board folds away" width="760">
 
 <sub>Recorded from the window itself (<code>--record</code>), frame by frame — not a mock-up.</sub>
 
