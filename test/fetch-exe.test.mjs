@@ -19,23 +19,23 @@ import { join } from "node:path";
 import { downloadExe, githubRepoOf, releaseAssetUrl } from "../lib/fetch-exe.js";
 
 test("the release URL comes from the manifest, never from a hard-coded owner", () => {
-	assert.deepEqual(githubRepoOf("git+https://github.com/kuba/dsh-agents-notch.git"), { owner: "kuba", name: "dsh-agents-notch" });
-	assert.deepEqual(githubRepoOf("https://github.com/kuba/dsh-agents-notch"), { owner: "kuba", name: "dsh-agents-notch" });
-	assert.deepEqual(githubRepoOf("github:kuba/dsh-agents-notch"), { owner: "kuba", name: "dsh-agents-notch" });
-	assert.deepEqual(githubRepoOf({ type: "git", url: "git+https://github.com/kuba/dsh-agents-notch.git" }), { owner: "kuba", name: "dsh-agents-notch" });
+	assert.deepEqual(githubRepoOf("git+https://github.com/someone/dsh-agents-notch.git"), { owner: "someone", name: "dsh-agents-notch" });
+	assert.deepEqual(githubRepoOf("https://github.com/someone/dsh-agents-notch"), { owner: "someone", name: "dsh-agents-notch" });
+	assert.deepEqual(githubRepoOf("github:someone/dsh-agents-notch"), { owner: "someone", name: "dsh-agents-notch" });
+	assert.deepEqual(githubRepoOf({ type: "git", url: "git+https://github.com/someone/dsh-agents-notch.git" }), { owner: "someone", name: "dsh-agents-notch" });
 	// Anything that is not GitHub cannot become a release asset this code can name.
-	assert.equal(githubRepoOf("https://gitlab.com/kuba/dsh-agents-notch"), null);
+	assert.equal(githubRepoOf("https://gitlab.com/someone/dsh-agents-notch"), null);
 	assert.equal(githubRepoOf(""), null);
 	assert.equal(githubRepoOf(null), null);
 
 	assert.equal(
-		releaseAssetUrl({ version: "0.1.2", repository: "git+https://github.com/kuba/dsh-agents-notch.git" }),
-		"https://github.com/kuba/dsh-agents-notch/releases/download/v0.1.2/AgentsNotch.exe",
+		releaseAssetUrl({ version: "0.1.2", repository: "git+https://github.com/someone/dsh-agents-notch.git" }),
+		"https://github.com/someone/dsh-agents-notch/releases/download/v0.1.2/AgentsNotch.exe",
 	);
 	// No repository, no version, or the "could not read a manifest" sentinel: no URL, rather than a 404.
 	assert.equal(releaseAssetUrl({ version: "0.1.2", repository: null }), null);
-	assert.equal(releaseAssetUrl({ version: "", repository: "github:kuba/dsh-agents-notch" }), null);
-	assert.equal(releaseAssetUrl({ version: "0.0.0", repository: "github:kuba/dsh-agents-notch" }), null);
+	assert.equal(releaseAssetUrl({ version: "", repository: "github:someone/dsh-agents-notch" }), null);
+	assert.equal(releaseAssetUrl({ version: "0.0.0", repository: "github:someone/dsh-agents-notch" }), null);
 });
 
 test("a download that verifies is renamed into place; one that does not verify leaves no file", async () => {

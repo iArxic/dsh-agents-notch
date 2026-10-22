@@ -16,6 +16,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { homedir } from "node:os";
 
 import {
 	IDENTITY_HUES,
@@ -52,7 +53,7 @@ test("a session that merely exists earns no row", () => {
 });
 
 test("a finished turn is DONE — the harness sends an object reason, not a string", () => {
-	// The bug Kuba reported: `reason: { kind: "completed" }` was read as a string, so the reason
+	// The bug iArxic reported: `reason: { kind: "completed" }` was read as a string, so the reason
 	// was always "" and EVERY turn end fell through to idle. The row vanished the instant the
 	// agent finished, which is exactly "he disappears completely off the notch".
 	assert.equal(reasonKind({ kind: "completed" }), "completed");
@@ -182,9 +183,9 @@ test("a session's hue is stable and different sessions get different ones", () =
 });
 
 test("the project is the last segment of the working directory", () => {
-	assert.equal(projectOf("C:\\Users\\kubav\\Projects\\blindKnifeArgon"), "blindKnifeArgon");
-	assert.equal(projectOf("C:\\Users\\kubav\\.dsh"), ".dsh");
-	assert.equal(projectOf("C:\\Users\\kubav"), "home");
+	assert.equal(projectOf("C:\\Users\\me\\Projects\\blindKnifeArgon"), "blindKnifeArgon");
+	assert.equal(projectOf("C:\\Users\\me\\.dsh"), ".dsh");
+	assert.equal(projectOf(homedir()), "home");
 	assert.equal(projectOf(""), "");
 	assert.equal(projectOf(undefined), "");
 });
@@ -290,7 +291,7 @@ test("a usage record with no arithmetic still yields the figure it can prove", (
 });
 
 test("a failed tool leaves NO trace on the row — the human had the tail removed", () => {
-	// Kuba, 2026-10-21: "still shows 18 tools failed i dont think it expires just clear tools failed
+	// iArxic, 2026-10-21: "still shows 18 tools failed i dont think it expires just clear tools failed
 	// from it entirely". The count is gone from the reducer, so a row is identical whether the turn
 	// hit a broken tool or not — a turn that really ended badly is an `error` row instead.
 	const record = createRecord("session-tools", 1_000);

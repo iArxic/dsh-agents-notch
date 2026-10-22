@@ -201,7 +201,7 @@ internal static class Draw
         c.Add(Label(text, 11.5, ink), 18, 0);
         if (tailW > 0)
             // The one tail left is a count of teammates, and it stays dim. A tail in the alarm tone used
-            // to report a broken tool; Kuba had that removed outright on 2026-10-21, because a count
+            // to report a broken tool; iArxic had that removed outright on 2026-10-21, because a count
             // that never expires is not news (see Program.cs, R6).
             c.Add(Label("\u2009\u00b7\u2009" + tail, 9.5, RowTail), 18 + TextWidth(text, 11.5) + 2, 1.5);
         return c;

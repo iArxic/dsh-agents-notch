@@ -65,7 +65,7 @@ DSH host process                                  separate Windows process
     "id": "session-db65f92b-…",
     "title": "Argon 0/4 on laptop — fixed",   // "" when the harness has not titled it yet
     "project": "blindKnifeArgon",             // workspace title, else the cwd's last segment
-    "cwd": "C:\\Users\\kubav\\Projects\\blindKnifeArgon",
+    "cwd": "C:\\Users\\me\\Projects\\blindKnifeArgon",
     "status": "working",                      // working | attention | done | error
     "since": 1790000000000,                   // when it entered `status`
     "activity": { "kind": "tool", "label": "roblox_verify" },   // null before the first tool

@@ -655,7 +655,7 @@ internal static class Live
             // R6 — a row says nothing while it is healthy. The one thing it may say is, for a session
             // and not a teammate, how many sessions it has delegated.
             //
-            // A broken tool used to add "· 2 tools failed" here, in alarm red. Kuba had it removed
+            // A broken tool used to add "· 2 tools failed" here, in alarm red. iArxic had it removed
             // outright on 2026-10-21 (*"i dont think it expires just clear tools failed from it
             // entirely"*): a per-turn count is not a moment in time, so it outlived the mistake it was
             // reporting, and a worse-than-half-finished retry is still just work. A turn that really
@@ -1542,7 +1542,7 @@ internal sealed class OverlayWindow : Window
     /// further than the 9 px the readout sits at while the bot is working. Parking it low enough for
     /// the ring at all times would leave it floating whenever there is no ring, which is most of the
     /// time; so it slides down exactly as far as the ring has faded in, and the ring pushes it aside
-    /// over the same 250 ms. (Kuba, 2026-10-21: the green ring ran straight through the bar and the
+    /// over the same 250 ms. (iArxic, 2026-10-21: the green ring ran straight through the bar and the
     /// number on a finished session.)
     /// </summary>
     private void PositionContext()

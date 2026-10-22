@@ -262,7 +262,7 @@ agent head, below it”*, then *“D1 with D6 (percentages)”*.
 
 **The ninth pass (2026-10-21) — the frame source was the bug, not the drawing.**
 
-Kuba: *"not sure why but it doesnt feel really smooth, its like its running at low fps (appear/disappear
+iArxic: *"not sure why but it doesnt feel really smooth, its like its running at low fps (appear/disappear
 animation) try to look at that"*. The overlay now measures itself, because "feels smooth" is not a
 number: `--log` writes one line per second with the frame count, the gap between frames and the time
 spent inside `Tick`.
@@ -319,7 +319,7 @@ moment after it happens?"*.
 * **An older host publishes neither**, and the window then keeps the old look — bar against 200 k,
   count as `82k` — instead of inventing a percentage out of a figure that is only the uncached slice.
 * **The broken-tool tail was removed outright.** A first answer gave it a 30 s shelf life; that was
-  still wrong, and Kuba said so: *"still shows 18 tools failed i dont think it expires just clear tools
+  still wrong, and iArxic said so: *"still shows 18 tools failed i dont think it expires just clear tools
   failed from it entirely"*. A per-turn count is not a moment in time — it survives the turn, and the
   row keeps saying it after the agent has worked around the mistake. `tool/result` is no longer read at
   all: a turn that really ended badly is an `error` row, with its own badge and ring, and nothing on

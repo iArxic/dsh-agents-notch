@@ -73,7 +73,7 @@ Live work on the machine:
 
 ```powershell
 # install/uninstall the bundle live (the app's own manager; the dsh CLI cannot write this profile)
-#   plugin_manager install_bundle  target: C:\Users\kubav\Projects\dsh-agents-notch
+#   plugin_manager install_bundle  target: <this repo's folder>
 #   plugin_manager remove_bundle   target: dsh-agents-notch
 Get-Content $env:USERPROFILE\.dsh\state\agents-notch\host-report.jsonl -Tail 8   # one line per event
 Invoke-WebRequest http://127.0.0.1:<webPort>/agents-notch/state                  # the published payload
