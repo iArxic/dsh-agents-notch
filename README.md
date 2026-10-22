@@ -125,44 +125,12 @@ dsh plugin --profile web add dsh-agents-notch
 
 Running the harness under another profile? Put its name in place of `web`.
 
-That is the whole install. The plugin is ~30 KB of JavaScript; the 65 MB window does not ride in the
-tarball, because every version bump would re-upload it and every update re-download it. Instead the
-host **fetches the matching release asset itself** the first time it needs a window it cannot find:
-`v<version>` of `repository` in the package manifest, hash-verified against the `.sha256` published
-beside it, written to `$DSH_HOME\state\agents-notch\window\<version>\`. You can watch it happen:
+The plugin is ~30 KB. The first time it runs, it downloads its window (one 65 MB file, no .NET runtime
+needed) from this repo's GitHub release and checks it against the published SHA-256. A few seconds later
+the notch is at the top of your screen.
 
-```jsonc
-{"event":"window-fetch","url":"https://github.com/iArxic/dsh-agents-notch/releases/download/v0.1.5/AgentsNotch.exe"}
-{"event":"window-fetched","bytes":68276826,"verified":true}
-{"event":"window-started","pid":6704,"source":"installed"}
-```
-
-**What success looks like:** within a couple of seconds of the harness starting, the tab is at the top
-of the screen, and `$DSH_HOME\state\agents-notch\state.json` lists your sessions. If the tab does not
-appear, that directory holds `host-report.jsonl` — the newest line says which of the five places the
-host looked, whether it tried to fetch, and the command that fixes it.
-
-<details>
-<summary><b>Offline, behind a firewall, or installing the window by hand</b></summary>
-
-<br>
-
-The installer does the same job as the auto-fetch:
-
-```powershell
-pwsh -File "<profile>\node_modules\dsh-agents-notch\tools\install-window.ps1" `
-     -Url https://github.com/iArxic/dsh-agents-notch/releases/download/v0.1.5/AgentsNotch.exe
-# or from a checkout you built yourself:
-pwsh -File tools\install-window.ps1 -FromPath dist\win-x64
-```
-
-`autoDownload: false` in the plugin row turns the fetch off; `downloadUrl: <url>` points it at a
-mirror. Being one file, the window unpacks its native libraries on first run, and the plugin points
-that unpack at `<stateDir>\bundle` rather than `%TEMP%`: measured on a normal Windows 11 box, the
-default unpack directory could not be created (error 5) and the app died before drawing anything,
-with no message a user would ever see.
-
-</details>
+**No notch?** Look at the last line of `$DSH_HOME\state\agents-notch\host-report.jsonl`: it says where
+the host looked for the window, whether the download worked, and the command that fixes it.
 
 ## Configure
 
@@ -289,6 +257,11 @@ The window takes `--shot`, `--record`, `--open`, `--freeze`, `--log`, `--fps`, `
 with no harness running. Every picture in this README is drawn by the window itself:
 `python tools/readme-media.py shots|record|art` renders the stills, records the demo frame by frame on
 the window's own clock, and lays them out.
+
+**Installing the window by hand** (offline, or a build of your own): `autoDownload: false` in the
+plugin row turns the download off, `downloadUrl: <url>` points it at a mirror, and
+`tools/install-window.ps1 -Url <release asset>` or `-FromPath dist\win-x64` puts a window where the
+host looks for one.
 
 - [`docs/CONTRACT.md`](docs/CONTRACT.md) — the interface between the two halves; frozen, and both
   halves and the tests are written against it.
