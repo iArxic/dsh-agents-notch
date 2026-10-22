@@ -25,7 +25,7 @@ decides what is true — that split is the whole architecture, and every "the no
 question is answered by looking at `state.json` first.
 
 ```
-lib/host-0.1.3.js   the entry the plugin row mounts (see the cache trap, §5.1)
+lib/host-0.1.6.js   the entry the plugin row mounts (see the cache trap, §5.1)
 lib/host.js         re-export shim: the stable import path for tests and readers
 lib/state.js        pure reducer: events -> session records -> the published rows (schema 3)
 lib/settings-store.js  the three settings layers, one clamp (defaults < row config < pane file)
@@ -116,7 +116,7 @@ in the 30-second window or a granular token with "bypass 2FA").
 Re-applying a plugin row serves the module the app already imported. Editing `lib/host.js` and
 re-mounting changes **nothing** — measured twice, once as a settings route that answered `404` while the
 code sat in the file. To land code without restarting the app: give the entry a **new file name** and
-point `package.json`'s `main` at it (that is why the entry is `host-0.1.3.js`), keeping `lib/host.js` as
+point `package.json`'s `main` at it (that is why the entry is `host-0.1.6.js`), keeping `lib/host.js` as
 a re-export shim for the imports. A `?v=` query on a row's `name` makes the import fail outright.
 
 ### 5.2 A duplicate JSON key deletes a feature silently

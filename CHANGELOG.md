@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — a README that shows the thing
+## 0.1.6 — double-click to open the app, and a notch that comes back
 
 The README opens with a hero, an animation of the real motion and a sheet of the four states, all drawn by the
 window itself: `--record <dir>` writes the motion frame by frame on its own clock, `--open-at` /
