@@ -110,7 +110,7 @@ if (-not $SkipRelease) {
 			}
 			foreach ($file in @($exe, $hash)) {
 				$name = Split-Path $file -Leaf
-				if ($existing.assets.name -contains $name) { Note "$name already uploaded"; continue }
+				if (@($existing.assets | ForEach-Object { $_.name }) -contains $name) { Note "$name already uploaded"; continue }
 				$uploadType = 'application/octet-stream'
 				$uri = "https://uploads.github.com/repos/$slug/releases/$($existing.id)/assets?name=$name"
 				$bytes = [System.IO.File]::ReadAllBytes($file)
