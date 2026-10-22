@@ -42,6 +42,12 @@ DSH host process                                  separate Windows process
 
   "retire": "route",              // "route" | "timer" — how a settled (done/error) row goes away
 
+  "finishedUrl": "http://127.0.0.1:51234/session-finished/api/status",
+                                  // absolute URL of the close-out route, or NULL while this host has
+                                  // no port yet. The window POSTs {sessionId, state:"finished"} here
+                                  // when the human presses the ✕; NULL ⇒ it writes the same mark into
+                                  // `$DSH_HOME/state/session-finished/manual.json` instead.
+
   "context": {
     "budget": 1000000,            // tokens the route's window holds, or NULL when the host does not know
     "hotAt": 0.5                  // fraction where the bar turns amber; the compaction trigger
@@ -108,6 +114,7 @@ DSH host process                                  separate Windows process
 |---|---|---|---|
 | `schema`, `plugin`, `wallMs`, `hostPid` | host | window | `wallMs` drives rule 3 |
 | `retire` | host | window | the tab's tooltip names it when `"timer"` |
+| `finishedUrl` | host | window | the ✕'s route; `null` = not known, the window falls back to `manual.json` under `DSH_HOME` |
 | `context.budget` | host (row config) | window | `null` = unknown, never guess |
 | `context.hotAt` | host (row config) | window | ignored when `budget` is null |
 | `settings.*` | host (row config) | window | window clamps, never persists |
@@ -146,6 +153,12 @@ decide them, each beating the one above:
 Both files go through `clampSettings`, so a slider and a YAML line behave identically, and a value the
 pane writes is stored **clamped**: the file always agrees with the window. A value that does not parse
 falls back to the layer BENEATH it — editing one slider must never undo a hand-written row.
+
+**The pane's file holds only the keys the pane has actually changed**, and a value that does not
+parse is not written at all. Both halves of that were learned the hard way (measured 2026-10-22):
+storing all nine keys made one slider click a snapshot of the whole row, and every later edit to
+`cordis.patch.yml` silently stopped taking effect; storing a rejected value would have frozen the
+row's value it fell back to. The pane is an override layer, not a copy.
 
 The pane cannot write the row, deliberately: rewriting `cordis.patch.yml` from a browser would
 round-trip a file other sessions also edit, and one bad indent takes the machine's configuration down.

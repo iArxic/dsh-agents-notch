@@ -51,6 +51,8 @@ internal static class Native
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtr(IntPtr h, int idx, IntPtr v);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongW")] private static extern int SetWindowLong(IntPtr h, int idx, int v);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtrW(IntPtr h, int idx);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")] private static extern int GetWindowLongW(IntPtr h, int idx);
     [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr h, uint flags);
     [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr m, ref MONITORINFO mi);
     [DllImport("user32.dll")] private static extern bool SetWindowDisplayAffinity(IntPtr h, uint affinity);
@@ -115,10 +117,22 @@ internal static class Native
         catch { return false; }
     }
 
+    /// <summary>
+    /// Read a window's style bits — a real read.
+    ///
+    /// This used to be `SetWindowLongPtr(h, index, IntPtr.Zero)`, which does return the previous value,
+    /// but only after SETTING the style to zero. On the layered notch that briefly clears
+    /// `WS_EX_LAYERED` / `WS_EX_NOACTIVATE` / `WS_EX_TOOLWINDOW`, and removing `WS_EX_LAYERED` from a
+    /// layered window can destroy its layered surface. `docs/INTERNALS.md` §9 records that
+    /// measurement and prescribes this import; the zeroing version survived because it reads like the
+    /// documented `GetWindowLongPtr` substitution. It is not: that trick is only safe when the value
+    /// is set back in the same breath.
+    /// </summary>
     internal static long GetWindowLong(IntPtr h, int index)
     {
-        if (IntPtr.Size == 8) return SetWindowLongPtr(h, index, IntPtr.Zero).ToInt64();
-        return SetWindowLong(h, index, 0);
+        // `GetWindowLongPtrW` only exists in 64-bit user32; on 32-bit it is a macro for `GetWindowLongW`.
+        if (IntPtr.Size == 8) return GetWindowLongPtrW(h, index).ToInt64();
+        return GetWindowLongW(h, index);
     }
 
     internal static void SetWindowLong(IntPtr h, int index, long value)

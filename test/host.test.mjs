@@ -15,7 +15,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -129,6 +129,44 @@ async function finishedServer(reply = 200) {
 	return { server, seen, port: server.address().port };
 }
 
+/**
+ * Drive one registered route handler the way the harness's web server would.
+ *
+ * The routes are collected by the stub and were previously never called, so every branch of them —
+ * 405, unknown key, reset, non-JSON, the clamp echo, and now the failed-write path — was verified by
+ * hand only. A handler that throws synchronously rejects the promise instead of hanging the test.
+ */
+function callRoute(route, { method = "GET", body = "" } = {}) {
+	return new Promise((resolve, reject) => {
+		const handlers = new Map();
+		const req = {
+			method,
+			setEncoding: () => {},
+			on: (name, handler) => { handlers.set(name, handler); },
+			destroy: () => {},
+		};
+		const res = {
+			status: 0,
+			writeHead(status) { this.status = status; },
+			end(text) {
+				try {
+					resolve({ status: this.status, body: text ? JSON.parse(text) : null });
+				} catch (error) {
+					reject(error);
+				}
+			},
+		};
+		try {
+			route.handler(req, res);
+		} catch (error) {
+			reject(error);
+			return;
+		}
+		if (body !== "") handlers.get("data")?.(body);
+		handlers.get("end")?.();
+	});
+}
+
 test("a subagent's row carries its origin and its parent's id", async () => {
 	const state = await boardOf([
 		{ live: true, header: { id: "session-lead", cwd: "C:\\work" } },
@@ -189,8 +227,8 @@ test("a state.json from apply() is schema 3 — the contract's keys and nothing 
 	// --- the root -------------------------------------------------------------------------------
 	assert.deepEqual(
 		Object.keys(state).sort(),
-		["context", "hostPid", "plugin", "retire", "schema", "sessions", "settings", "summary", "wallMs"],
-		"the root must carry exactly the contract's keys, and `finishedUrl`/`contextBudget` are gone",
+		["context", "finishedUrl", "hostPid", "plugin", "retire", "schema", "sessions", "settings", "summary", "wallMs"],
+		"the root carries the contract's keys — `finishedUrl` is the ✕'s route, published or null",
 	);
 	assert.equal(state.schema, 3);
 	assert.equal(state.plugin, "dsh-agents-notch/host");
@@ -198,6 +236,9 @@ test("a state.json from apply() is schema 3 — the contract's keys and nothing 
 	assert.ok(Math.abs(Date.now() - state.wallMs) < 60_000, "wallMs is the host clock at write time");
 	assert.equal(state.hostPid, process.pid);
 	assert.equal(state.retire, "route");
+	// This stub has no web server, so there is no address to publish — and "not known" is null,
+	// never an invented URL (contract #5).
+	assert.equal(state.finishedUrl, null);
 
 	// --- context ----------------------------------------------------------------------------------
 	assert.deepEqual(Object.keys(state.context).sort(), ["budget", "hotAt"]);
@@ -313,6 +354,49 @@ test("settings are clamped to the contract's ranges, and a bad value falls back 
 	assert.equal(buildState({ records: many, config: {}, now: 2_000 }).sessions.length, 6);
 	assert.equal(buildState({ records: many, config: { maxRows: 3 }, now: 2_000 }).sessions.length, 3);
 	assert.equal(buildState({ records: many, config: { maxRows: 99 }, now: 2_000 }).sessions.length, 10, "and it is clamped to 10, not trusted");
+});
+
+test("the ✕'s route is published when the host knows its port, and null when it does not", async () => {
+	// `lib/host-v6.js` published this and a later cleanup dropped it from the payload, while the
+	// window kept reading it (desktop/Program.cs, `FinishedUrl`). The symptom was silent: every ✕
+	// took the manual.json fallback instead of the route, so `plugins/session-finished` kept its own
+	// in-memory copy and the app's sidebar tick could disagree with the overlay.
+	assert.equal((await boardOf([])).finishedUrl, null, "no port is `not known`, never an invented URL");
+
+	const host = startHost({ entries: [], port: 45123 });
+	const state = await until(host.state);
+	for (const dispose of host.disposers) dispose();
+	assert.equal(state.finishedUrl, "http://127.0.0.1:45123/session-finished/api/status");
+});
+
+test("a settings write that fails answers 500 instead of throwing out of the harness", async () => {
+	// The route is the only place a request changes anything, and it used to call `writeStore`
+	// bare: on Windows the rename throws while anything holds the target open (the same lock the
+	// state publisher retries around), or when the disk is full — inside an `async` HTTP callback,
+	// which is an uncaughtException in the harness process. One click in Settings could take the
+	// app down.
+	const host = startHost({ entries: [] });
+	const route = host.routes.find((candidate) => candidate.path === "/agents-notch/settings");
+	assert.notEqual(route, undefined, "the settings route was never registered");
+
+	// A directory where the settings file belongs: the tmp file writes, the rename cannot land.
+	mkdirSync(join(host.dir, "settings.json"));
+
+	const write = await callRoute(route, { method: "POST", body: JSON.stringify({ opacity: 0.5 }) });
+	assert.equal(write.status, 500, "a failed write is not a success");
+	assert.equal(write.body.ok, false);
+	assert.match(write.body.error, /could not write/, "and it names what failed");
+
+	// Reset goes through the same door, and may not report "ok" for a file it could not clear.
+	const reset = await callRoute(route, { method: "POST", body: JSON.stringify({ reset: true }) });
+	assert.equal(reset.status, 500);
+	assert.equal(reset.body.ok, false);
+
+	// The host is still serving: the failure was contained, not a crash.
+	const after = await callRoute(route, { method: "GET" });
+	for (const dispose of host.disposers) dispose();
+	assert.equal(after.status, 200, "the route still answers after a failed write");
+	assert.equal(after.body.settings.opacity, 1, "and nothing was stored");
 });
 
 test("the edge reaches the row once the session is working", async () => {

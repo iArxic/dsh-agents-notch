@@ -244,7 +244,7 @@ Remove-Item -Recurse "$env:DSH_HOME\state\agents-notch"    # state, log, window 
 ## Develop
 
 ```powershell
-npm test                      # 55 tests, node --test, no harness, no window, no network
+npm test                      # 57 tests, node --test, no harness, no window, no network
 npm run window:build          # dotnet build desktop/AgentsNotch.csproj -c Release
 npm run window:publish        # self-contained single file + SHA256 into dist/win-x64
 

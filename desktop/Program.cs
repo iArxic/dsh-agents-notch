@@ -383,7 +383,12 @@ internal sealed class BoardData
         _ => Draw.Grey,
     };
 
-    /// <summary>The demo board — what the window drew before the plugin fed it.</summary>
+    /// <summary>
+    /// The fabricated demo board — **only** for `--demo`, where drawing something with no host is the
+    /// point. It must never be a fallback: a window that cannot read a state file says "host offline"
+    /// (see <see cref="Live.Unavailable"/>), because an invented board is the one thing the contract's
+    /// honesty rules exist to forbid.
+    /// </summary>
     public static BoardData Demo()
     {
         var d = new BoardData
@@ -538,6 +543,20 @@ internal static class Live
             approvalTool, approvalReason, activityKind, activityLabel, Int(el, "steps"), Str(el, "identity"),
             Str(el, "origin"), Str(el, "parentSession"), Int(el, "contextTokens"));
     }
+
+    /// <summary>
+    /// The board for "no state file has ever parsed" — the honest empty answer.
+    ///
+    /// This exists because the constructor used to seed `_data` from <see cref="Demo"/>: with the
+    /// state file missing (a wrong `--state`, a host that died before its first write, a deleted
+    /// state dir, a mistyped fixture in `--shot`) the window drew three invented working sessions
+    /// and four bots, and NOTHING ever replaced them — the stale path is gated on a previous
+    /// state, so it never fires with `_lastState == null`. That is the one lie the contract exists
+    /// to prevent, so the empty board is built through the same `Build` every other board uses,
+    /// with `stale: true` and a zero `wallMs`: the tab says "host offline", the sub line says
+    /// "no state file", and there is not a bot or a row on it.
+    /// </summary>
+    public static BoardData Unavailable() => Build(new StateFile { WallMs = 0 }, stale: true);
 
     /// <summary>
     /// The board the live rows describe.
@@ -857,7 +876,14 @@ internal sealed class OverlayWindow : Window
     const double StaleMs = 4000;
 
     readonly Options _opt;
-    BoardData _data = BoardData.Demo();
+    /// <summary>
+    /// What the board currently shows. Assigned in the constructor and never left unassigned: only
+    /// `--demo` gets the fabricated sheet, because drawing something with no host is its whole point.
+    /// Every other start begins on <see cref="Live.Unavailable"/> — the honest empty board — and stays
+    /// there until a state file parses. A window that cannot read a state file must say so, not invent
+    /// three sessions (see `Unavailable`).
+    /// </summary>
+    BoardData _data;
 
     /// <summary>The settings in force: parsed from the state file, clamped by Settings, never saved.</summary>
     Settings _settings = new();
@@ -960,6 +986,10 @@ internal sealed class OverlayWindow : Window
     public OverlayWindow(Options opt)
     {
         _opt = opt;
+        // The ONLY producer of the demo sheet. Every other start — including one whose `--state`
+        // does not exist yet — begins on the honest empty board, and `SeedFromState` below replaces it
+        // the moment a real file parses.
+        _data = opt.Demo ? BoardData.Demo() : Live.Unavailable();
         _forceShow = opt.ForceShow;
         _forceOpen = opt.Open;
         _freezeMs = opt.FreezeMs;
@@ -1705,6 +1735,15 @@ internal sealed class OverlayWindow : Window
             using var response = await Http.PostAsync(url, content);
             string body = await response.Content.ReadAsStringAsync();
             Log.Write($"dismiss — {(int)response.StatusCode} {body}");
+            if (!response.IsSuccessStatusCode)
+            {
+                // The route answered and refused (it validates its input, and it is 404 when
+                // `plugins/session-finished` is not mounted). A ✕ that visibly does nothing is worse
+                // than the fallback, so make the same mark the honest way and say which store took it.
+                Log.Write("dismiss — the route refused it, falling back to the manual mark");
+                WriteManualMark(id);
+                return;
+            }
             if (_pinnedId == id) _pinnedId = null;
             PollState();
         }
@@ -1715,13 +1754,19 @@ internal sealed class OverlayWindow : Window
     }
 
     /// <summary>
-    /// The fallback while the running host has not published `finishedUrl` (host@5 and earlier).
+    /// The fallback for a host that has not published `finishedUrl` (no port yet, or host@5 and
+    /// earlier).
     ///
     /// It writes the SAME file and the SAME value the sidebar's ✓ writes — `manual.json`, the
     /// human's own marks — which this feature already reads, so it is not a second opinion. The
-    /// overlay's host re-reads that file on every write cycle, so the row goes within a tick. The
     /// difference is only that `plugins/session-finished` keeps its own copy in memory until it
     /// next applies, so the app's sidebar tick can lag behind until then.
+    ///
+    /// The home is `DSH_HOME` when the environment sets it, because that is what the host itself
+    /// resolves (`lib/exe.js`, `dshHome`); `%USERPROFILE%\.dsh` is only the default when it does not.
+    /// It used to be hardcoded, which made the ✕ write a file nobody reads on any machine with a
+    /// custom home — the row stayed, the fold played, and nothing logged a failure because the write
+    /// itself succeeded.
     /// </summary>
     private void WriteManualMark(string id)
     {
@@ -1729,13 +1774,19 @@ internal sealed class OverlayWindow : Window
         {
             // The host's own default, not a path derived from --state: the state file may be a
             // fixture, and the mark always belongs to the machine's real store.
-            string stateDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dsh", "state");
-            string file = Path.Combine(stateDir, "session-finished", "manual.json");
+            string home = Environment.GetEnvironmentVariable("DSH_HOME")?.Trim() ?? "";
+            if (home.Length == 0)
+                home = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dsh");
+            string file = Path.Combine(home, "state", "session-finished", "manual.json");
             var marks = File.Exists(file)
                 ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(file)) ?? new()
                 : new Dictionary<string, string>();
             marks[id] = "finished";
+            // The store belongs to another plugin, so the directory may not exist yet on a machine
+            // that never installed it; the mark is still the human's and still means the same thing.
+            string? storeDir = Path.GetDirectoryName(file);
+            if (!string.IsNullOrEmpty(storeDir)) Directory.CreateDirectory(storeDir);
             string tmp = file + ".overlay.tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(marks, new JsonSerializerOptions { WriteIndented = true }) + "\n");
             File.Move(tmp, file, overwrite: true);

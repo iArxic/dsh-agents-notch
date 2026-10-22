@@ -88,10 +88,23 @@ test("writing stores the CLAMPED values, merges patches, and reset clears the la
 	assert.equal(second.settings.opacity, 1, "a patch does not drop what an earlier patch set");
 	assert.equal(second.settings.scale, 1.1, "keys the pane never touched still come from the row");
 
-	// Every key the pane can write is in the file, and nothing else is.
-	assert.deepEqual(Object.keys(JSON.parse(readFileSync(file, "utf8"))).sort(), [...SETTINGS_KEYS].sort());
+	// The file is an OVERRIDE layer, not a snapshot: it holds only the keys the pane changed.
+	// Storing all nine (the 0.1.6 behaviour) froze the row's other values into this layer, so a later
+	// edit to `cordis.patch.yml` silently stopped taking effect.
+	const stored = JSON.parse(readFileSync(file, "utf8"));
+	assert.deepEqual(Object.keys(stored).sort(), ["motion", "opacity"]);
+	assert.ok(Object.keys(stored).every((key) => SETTINGS_KEYS.includes(key)), "and only known keys");
+	const edited = clampSettings({ opacity: 0.9, scale: 1.6 });
+	assert.equal(mergeSettings(edited, stored).scale, 1.6, "a later row edit still lands");
+	assert.equal(mergeSettings(edited, stored).opacity, 1, "the pane's own value still wins");
 
-	clearStore(file);
+	// A value that does not parse is refused rather than stored as its fallback: a stored fallback
+	// would freeze the row's value it fell back to — the same bug in a smaller form.
+	writeStore(file, { scale: "banana", anchor: "middle" }, row);
+	assert.deepEqual(Object.keys(JSON.parse(readFileSync(file, "utf8"))).sort(), ["motion", "opacity"]);
+	assert.equal(mergeSettings(edited, readStore(file)).scale, 1.6, "the row's scale still decides");
+
+	assert.equal(clearStore(file), true, "a cleared layer reports success");
 	assert.deepEqual(readStore(file), {});
 	const after = mergeSettings(row, readStore(file));
 	assert.equal(after.opacity, 0.9, "with the layer cleared, the row decides again");
