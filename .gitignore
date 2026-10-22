@@ -16,3 +16,4 @@ node_modules/
 
 # npm pack output
 *.tgz
+__pycache__/

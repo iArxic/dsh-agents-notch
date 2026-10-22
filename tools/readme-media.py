@@ -6,7 +6,7 @@ re-draws the notch, so the pictures cannot drift from what the window draws.
 
     python tools/readme-media.py record     # drive the window through the demo, frames -> dist/media/rec
     python tools/readme-media.py shots      # stills of each state -> dist/media/shots
-    python tools/readme-media.py art        # docs/hero.png, docs/states.png, docs/demo.gif
+    python tools/readme-media.py art        # docs/*.png, docs/demo.webp, and dist/media/demo.gif for GIF-only sites
 
 `record` and `shots` stop the live window first (the named mutex admits one notch); the host
 brings it back within ~15 s. Windows only, needs a built window (`npm run window:build`) and Pillow.
@@ -443,11 +443,13 @@ def demo_gif(width=800):
     is on screen gets its colours (a shared one spends them on the wallpaper and loses the rings), and
     dithered, so the gradient does not band. The README uses `demo.webp`, which needs neither."""
     frames, delays = film(width)
-    q = [f.quantize(colors=256, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG) for f in frames]
-    q[0].save(DOCS / "demo.gif", save_all=True, append_images=q[1:], duration=delays,
+    # Pillow only dithers when it is handed a palette, so each frame's own palette is built first
+    q = [f.quantize(palette=f.quantize(colors=256, method=Image.MEDIANCUT), dither=Image.FLOYDSTEINBERG) for f in frames]
+    out = OUT / "demo.gif"                  # not committed: nothing in the repo shows it
+    q[0].save(out, save_all=True, append_images=q[1:], duration=delays,
               loop=0, optimize=True, disposal=1)
-    kb = (DOCS / "demo.gif").stat().st_size // 1024
-    print(f"demo -> {DOCS / 'demo.gif'} ({len(q)} frames, {q[0].size[0]}x{q[0].size[1]}, {kb} KB)")
+    kb = out.stat().st_size // 1024
+    print(f"demo -> {out} ({len(q)} frames, {q[0].size[0]}x{q[0].size[1]}, {kb} KB)")
 
 
 def main():

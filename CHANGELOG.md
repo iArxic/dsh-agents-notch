@@ -2,12 +2,12 @@
 
 ## Unreleased — a README that shows the thing
 
-The README opens with a hero, a GIF of the real motion and a sheet of the four states, all drawn by the
+The README opens with a hero, an animation of the real motion and a sheet of the four states, all drawn by the
 window itself: `--record <dir>` writes the motion frame by frame on its own clock, `--open-at` /
 `--close-at` unfold the board on a schedule, and `tools/readme-media.py` lays the renders out. The
 reference sections (every key, the manual install) fold away, and a short 中文 section closes it.
 
-The demo is an animated WebP (full colour, 849 KB at 1100 px); `docs/demo.gif` stays for places that
+The demo is an animated WebP (full colour, 849 KB at 1100 px); `dist/media/demo.gif` is built for places that
 only take a GIF. A GIF has 256 colours a frame, and the wallpaper's gradient spent them on banding.
 
 `npm test` runs again on Node 25, which no longer accepts a directory for `node --test`: the script
