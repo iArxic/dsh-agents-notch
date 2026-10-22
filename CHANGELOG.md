@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.1.7 — the notch stops lying when it cannot see the host
+
+**A window with no readable state file says so.** It used to start from the demo board, so a wrong
+`--state`, a host that died before its first write or a deleted state dir drew three invented working
+sessions and four bots — and nothing ever replaced them, because the stale path waits for a previous
+state that never arrives. The empty board is now built the same way every other one is, with
+`wallMs: 0`: the tab reads `host offline`, the sub line says `no state file`, and there is not a bot or
+a row on it. `--demo` is the only producer of the fabricated sheet.
+
+**A replayed session keeps the time it actually finished.** `applyEvent` stamped every event with its
+arrival clock and ignored the envelope's own `time`, so the log replay the sweep does at mount published
+yesterday's finish as `since: <boot>`: the row said "finished 0s ago", took the big bot as the newest
+change, and got a fresh 15 minutes under `retire: "timer"` on every restart.
+
+**The ✕ reaches the route again, and the fallback works on a custom `DSH_HOME`.** The payload stopped
+publishing `finishedUrl` while the window kept reading it, so every dismiss took the fallback — which
+hardcoded `%USERPROFILE%\.dsh` and silently no-oped on any machine whose home is elsewhere. The field is
+published when the host knows its port (`null` when it does not), and a route that refuses falls back
+instead of doing nothing.
+
+**The pane is an override layer, not a copy of the row.** One slider click used to write all nine
+settings, freezing the row's other values into the pane's file — after which an edit to
+`cordis.patch.yml` silently stopped taking effect. Only the keys the pane changed are stored now, and a
+value that does not parse is refused instead of being stored as its fallback. A write that fails, or a
+Reset that cannot clear the file, answers 500 and is reported; it used to throw out of the HTTP callback
+and take the harness process with it.
+
+**Two smaller honesty fixes.** `contextBudget: true` published a budget of one token (YAML spells `yes`
+as a boolean; `Number(true)` is 1), and the auto-fetch shared a single 120 s deadline between the 65 MB
+download and its `.sha256` — on a slow line the hash request aborted on the first tick and the exe
+installed unverified. Each request has its own deadline now, and a hash that cannot be fetched refuses
+the install instead of passing silently.
+
+**The settings door keeps its own lock.** Plugin routes are not cookie-gated, so `POST /agents-notch/settings`
+now requires `content-type: application/json` and refuses another page's `Origin`/cross-site
+`Sec-Fetch-Site` — a `text/plain` body is a "simple request" no browser preflights.
+
+**A waiting row says why it waits.** `approval.reason` was parsed and discarded, so the row led with the
+tool's name (`pwsh` for every approval). It is the row's tail now — `wants to delete 14 files under sr…`
+— capped so the title stays readable.
+
+**Full-screen hiding is per monitor, and the desktop is not a full-screen app.** The shell window's DWM
+bounds are exactly the monitor rect, so pressing Win+D or clicking the desktop hid the notch; cloaked and
+zero-area windows are skipped too, and a game on display 1 no longer hides the notch on display 2.
+
+The window also reads its style bits with a real `GetWindowLongPtrW` instead of zeroing `GWL_EXSTYLE` to
+learn it, which briefly stripped `WS_EX_LAYERED` from the live window.
+
 ## 0.1.6 — double-click to open the app, and a notch that comes back
 
 The README opens with a hero, an animation of the real motion and a sheet of the four states, all drawn by the
