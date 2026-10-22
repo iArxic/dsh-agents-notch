@@ -1316,6 +1316,7 @@ internal sealed class OverlayWindow : Window
 
         // the slim tab — always visible, the summary of everything
         _tabHost = new Canvas { Width = TabW, Height = TabH };
+        _tabHost.MouseLeftButtonDown += (_, e) => { if (e.ClickCount >= 2) { e.Handled = true; OpenApp(); } };
         var bg = Draw.Panel(TabW, TabH, Draw.C("#08080A"), 0);
         bg.CornerRadius = new CornerRadius(0, 0, 15, 15);
         // The tab's shadow stays an Effect on purpose: `LayoutTab` resizes the tab to its text, so a
@@ -1377,6 +1378,13 @@ internal sealed class OverlayWindow : Window
         // the board — appears under the tab on hover
         _cardHost = new Canvas { Width = CardW, Height = _cardH, Opacity = 0, IsHitTestVisible = false };
         _cardHost.RenderTransformOrigin = new Point(.5, 0);
+        // `ApplyProgress` caches both of these against the card it last saw. Left over from the old
+        // card, the new one stayed unhittable while open: a click that rebuilt the board (pinning a
+        // session with no context count) put the pointer over nothing, `_root` got MouseLeave, and the
+        // whole board folded away under the cursor.
+        _cardLive = false;
+        _cardSlide = null;
+        _cardScale = null;
         var card = Draw.Panel(CardW, _cardH, Draw.PanelBg, 26, .985, shadow: Draw.Shadow());
         // CONTRACT `retire`: "timer" means the harness's own close-out verdict is unavailable, so
         // settled rows age out instead. Nothing changes visually — this line of tooltip is all it is.
@@ -1597,8 +1605,14 @@ internal sealed class OverlayWindow : Window
             {
                 string id = row.Id;
                 line.Cursor = Cursors.Hand;
-                line.ToolTip = "Show this session on the bot";
-                line.MouseLeftButtonDown += (_, e) => { e.Handled = true; TogglePin(id); };
+                line.ToolTip = "Show this session on the bot · double-click to open DeepSeek Harness";
+                line.MouseLeftButtonDown += (_, e) =>
+                {
+                    e.Handled = true;
+                    // the first click of a double-click already pinned the row; leave it pinned
+                    if (e.ClickCount >= 2) OpenApp();
+                    else TogglePin(id);
+                };
 
                 // A — the ✕ sits at the row's right edge, and only while THIS row is selected and
                 // settled. A working or waiting row has nothing to retire: the host keeps those
@@ -1629,6 +1643,22 @@ internal sealed class OverlayWindow : Window
         Log.Write($"pinned — {(_pinnedId is null ? "(none)" : _pinnedId)}");
         if (_lastState is not null) ApplyBoard(Live.Build(_lastState, _pinnedId, _settings.MaxRows, _data.Stale, _settings.ShowProject));
         RebuildStatic();          // the ✕ appears and disappears with the selection
+    }
+
+    /// <summary>
+    /// Bring DeepSeek Harness to the front through its own `dsh://open` link — the one deep link the
+    /// app registers. It focuses the app's window; the app has no link that opens one session, so the
+    /// row the human double-clicked stays pinned here instead.
+    /// </summary>
+    private void OpenApp()
+    {
+        try
+        {
+            Native.LendForeground();
+            Process.Start(new ProcessStartInfo("dsh://open") { UseShellExecute = true });
+            Log.Write("open app — dsh://open");
+        }
+        catch (Exception e) { Log.Write("open app failed: " + e.Message); }
     }
 
     static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(4) };
@@ -2249,6 +2279,8 @@ internal sealed class OverlayWindow : Window
         var icon = System.Drawing.Icon.FromHandle(bmp.GetHicon());
 
         var menu = new System.Windows.Forms.ContextMenuStrip();
+        menu.Items.Add("Open DeepSeek Harness", null, (_, _) => OpenApp());
+        menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add("Hide the notch", null, (_, _) => { _forceHidden = true; });
         menu.Items.Add("Show it again", null, (_, _) => { _forceHidden = false; });
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
@@ -2329,7 +2361,8 @@ internal static class Program
         Native.EnablePerMonitorDpi();
         Log.Write($"dpi — manifest/call aware, system={Native.SystemDpi()}");
         var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
-        app.DispatcherUnhandledException += (_, e) => { Log.Write("UNHANDLED: " + e.Exception); };
+        app.DispatcherUnhandledException += (_, e) => { Log.Write("UNHANDLED: " + e.Exception); WriteCrash(opt, e.Exception); };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => WriteCrash(opt, e.ExceptionObject);
         var window = new OverlayWindow(opt);
         app.MainWindow = window;
         Log.Write("window constructed — showing");
@@ -2338,6 +2371,22 @@ internal static class Program
         app.Run();
         Log.Write("run loop ended");
         return 0;
+    }
+
+    /// <summary>
+    /// One line in `window-crash.log` beside the state file. The host spawns the window with no
+    /// `--log` and its stdio ignored, so without this a crash is only an exit code in the host's report.
+    /// </summary>
+    private static void WriteCrash(Options opt, object? error)
+    {
+        try
+        {
+            string dir = Path.GetDirectoryName(Path.GetFullPath(opt.StatePath)) ?? ".";
+            string text = (error?.ToString() ?? "unknown").ReplaceLineEndings(" | ");
+            File.AppendAllText(Path.Combine(dir, "window-crash.log"),
+                $"{DateTimeOffset.UtcNow:O} pid {Environment.ProcessId}: {text}{Environment.NewLine}");
+        }
+        catch { /* dying already; nothing better to do */ }
     }
 
     /// <summary>

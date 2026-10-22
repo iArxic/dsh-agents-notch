@@ -25,6 +25,10 @@ DSH host process                                  separate Windows process
   written when the human picks *Quit overlay* from the tray. The host does not spawn a window again
   for **one hour** after a quit whose `wallMs` is newer than the host's boot. This exists because
   the host's supervisor otherwise resurrects a window the human just dismissed.
+- When the window dies of an unhandled exception it appends one line to `window-crash.log`, next to
+  the state file, before it goes. The host quotes the last line in its `window-exit` report when the
+  file was written during that window's life. It is a diagnosis, never a signal: nothing reads it to
+  decide anything.
 - Anything else the two need belongs in this file first.
 
 ## `state.json`, schema 3
@@ -117,7 +121,7 @@ DSH host process                                  separate Windows process
 |---|---|---|
 | harness boots, row applies | `apply()` writes state, spawns the exe if not already running | starts, polls `--state` |
 | harness quits | child is killed with the parent (`--parent-pid` watch) | exits |
-| the exe dies on its own | logs `window-exit`, respawns after 15 s, at most 3 tries in a row | — |
+| the exe dies on its own | logs `window-exit` (with the window's `crash` line when it left one), respawns after 15 s; after 3 quick deaths in a row, every 5 minutes | appends an unhandled exception to `window-crash.log` |
 | the human quits from the tray | stops respawning for an hour, logs `window-quit` | writes `quit.json`, exits |
 | the human is running a full-screen app | keeps writing state | hides itself, keeps polling |
 

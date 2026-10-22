@@ -38,7 +38,7 @@ context switch every time:
 The notch is 220×30 px of always-on-top that **never takes focus**, **hides under a full-screen app**,
 and shows the one thing the sidebar cannot while you are in another window: **a session stuck on you**.
 Hover it and the board unfolds — who is working, who is waiting on you, who failed, who finished and
-you have not looked yet.
+you have not looked yet. Double-click the tab or a row and DeepSeek Harness comes to the front.
 
 ## What it shows
 
@@ -244,7 +244,7 @@ Remove-Item -Recurse "$env:DSH_HOME\state\agents-notch"    # state, log, window 
 ## Develop
 
 ```powershell
-npm test                      # 54 tests, node --test, no harness, no window, no network
+npm test                      # 55 tests, node --test, no harness, no window, no network
 npm run window:build          # dotnet build desktop/AgentsNotch.csproj -c Release
 npm run window:publish        # self-contained single file + SHA256 into dist/win-x64
 
@@ -276,7 +276,7 @@ host looks for one.
 **哪个会话正在等你**。
 
 - **工作中**没有光圈（安静的默认状态）；**需要你**是琥珀色光圈；**完成**是绿色光圈和 `^^` 表情；**失败**是红色光圈。
-- 鼠标悬停即展开面板：谁在工作、谁在等你审批或回答、谁失败了、谁已完成但你还没看。
+- 鼠标悬停即展开面板：谁在工作、谁在等你审批或回答、谁失败了、谁已完成但你还没看。双击标签或任意一行即可切换到 DeepSeek Harness。
 - 从不抢焦点，全屏应用下自动隐藏；没有真实的上下文预算就不显示百分比，宿主断开时标签变灰并注明最后心跳时间。
 - 设置 → **Agents Notch** 有独立设置页：大小、位置、显示器、行数、不透明度、动效，修改即时生效。
 

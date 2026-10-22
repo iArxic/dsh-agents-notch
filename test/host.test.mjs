@@ -29,7 +29,7 @@ import { join } from "node:path";
 process.env.DSH_HOME = mkdtempSync(join(tmpdir(), "agents-notch-home-"));
 delete process.env.AGENTS_NOTCH_EXE;
 
-import { apply, buildState, contextOf, quitHold, settingsOf } from "../lib/host.js";
+import { apply, buildState, contextOf, nextSpawn, quitHold, settingsOf } from "../lib/host.js";
 import { exeCandidates, findExe, installedExePath, missingExeFix, publishExePath } from "../lib/exe.js";
 import { SETTLED_FALLBACK_MS, applyEvent, createRecord } from "../lib/state.js";
 
@@ -551,6 +551,23 @@ test("the window is found in the contract's order, each step on its own", () => 
 	assert.ok(fix.includes("C:\\a.exe") && fix.includes("C:\\b.exe"), "and every path it tried");
 	// A filesystem that cannot answer is not a filesystem that says yes.
 	assert.equal(findExe({ env: {}, dshHome: home, version, root, exists: () => { throw new Error("no"); } }).path, null);
+});
+
+test("a window that keeps dying is retried slowly, never given up on for good", () => {
+	// Three quick deaths are retried at 15 s; the fourth used to stop the supervisor until the harness
+	// restarted. Measured on this machine: a developer killing the window to render stills tripped it.
+	let respawns = 0;
+	const delays = [];
+	for (let i = 0; i < 6; i++) {
+		const next = nextSpawn({ lived: 2_000, respawns });
+		respawns = next.respawns;
+		delays.push(next.gaveUp ? "slow" : next.delayMs);
+	}
+	assert.deepEqual(delays, [15_000, 15_000, 15_000, "slow", "slow", "slow"]);
+	assert.equal(nextSpawn({ lived: 2_000, respawns: 3 }).delayMs, 5 * 60 * 1000);
+
+	// A window that stayed up a minute was healthy: the count starts again.
+	assert.deepEqual(nextSpawn({ lived: 60_000, respawns: 9 }), { respawns: 0, delayMs: 15_000, gaveUp: false });
 });
 
 test("a tray-quit suppresses the spawn for an hour, and not after it", async () => {

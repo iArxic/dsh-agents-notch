@@ -166,7 +166,7 @@ The remote is the safety net: `git fetch && git reset --hard origin/master`.
 
 ## 6. State of the work, and what is still unverified
 
-Verified on this machine: 54 tests; the host fetching its own window from the release (hash checked);
+Verified on this machine: 55 tests; the host fetching its own window from the release (hash checked);
 `install-window.ps1` from a URL; both plugin install paths (registry and local link); the settings route
 (GET/POST/clamp/reset/unknown-key); the window's placement, states and stills of every state.
 

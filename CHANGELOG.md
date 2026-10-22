@@ -13,6 +13,23 @@ only take a GIF. A GIF has 256 colours a frame, and the wallpaper's gradient spe
 `npm test` runs again on Node 25, which no longer accepts a directory for `node --test`: the script
 passes a glob instead.
 
+**Double-click to open the app.** Double-clicking the tab or a row on the board brings DeepSeek
+Harness to the front through its own `dsh://open` link, and the tray menu has *Open DeepSeek Harness*.
+A single click still pins a row. The app registers no link that opens one session, so the double-clicked
+row stays pinned on the bot instead.
+
+**The notch comes back.** The supervisor used to give up for good after three quick deaths in a row,
+which left no notch until the harness restarted. Measured here: a morning of killing the window to
+render stills tripped it. It now keeps retrying every 5 minutes after the quick tries, and says
+`window-giveup` once per streak. A window that dies of an exception appends the exception to
+`window-crash.log`, and the host quotes it in `window-exit` as `crash`. Until now the only evidence
+was an exit code.
+
+**Clicking a session no longer folds the board away.** Pinning a session whose board has a different
+shape (one with a context count and one without) rebuilds the board, and the rebuilt board inherited
+the old one's cached "hit-testable" flag and transforms. It stayed invisible to the mouse while open,
+so the pointer counted as having left and the board folded under the cursor. A rebuild now resets both.
+
 ## 0.1.5 — the finished face is the `^^`, with its ring
 
 Two symptoms, one bug: when the transition key became `id|status`, the pose branches kept comparing it

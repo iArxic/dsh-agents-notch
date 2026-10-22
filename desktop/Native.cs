@@ -56,6 +56,14 @@ internal static class Native
     [DllImport("user32.dll")] private static extern bool SetWindowDisplayAffinity(IntPtr h, uint affinity);
     [DllImport("user32.dll")] private static extern bool SetProcessDpiAwarenessContext(IntPtr value);
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr h, int attr, out RECT r, int size);
+    [DllImport("user32.dll")] private static extern bool AllowSetForegroundWindow(int processId);
+
+    /// <summary>
+    /// Let whichever process answers next take the foreground. This window never activates, so
+    /// without it the app we launch may only flash its taskbar button; the grant is ours to give
+    /// because the click that asked for it was ours.
+    /// </summary>
+    public static void LendForeground() => AllowSetForegroundWindow(-1 /* ASFW_ANY */);
 
     // ── constants ───────────────────────────────────────────────────────────────
     internal const int GWL_EXSTYLE = -20;
