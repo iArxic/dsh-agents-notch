@@ -191,6 +191,13 @@ click): schema 4 published, a question's own text as `approval.reason`, Open swi
 session (`open-result: opened`) and raising it from minimized (`SwitchToThisWindow`), the island's Open
 not unfolding the board, the tab resizing when its words change, the scrolling list (`many.json`).
 
+The 0.1.8 release agrees with itself: package `0.1.8` → tag `v0.1.8` (annotated, on the commit that
+closed round 13) → release asset. `releaseAssetUrl()` derives
+`…/releases/download/v0.1.8/AgentsNotch.exe`, and the asset downloaded back through that public URL
+hashes to the same `2fff61418abf…` as `dist/win-x64/AgentsNotch.exe` and as the installed
+`state/agents-notch/window/0.1.8/AgentsNotch.exe` — so the running notch is the released bytes. The
+npm half of the three was iArxic's to publish, not this repo's.
+
 **Not verified, do not claim it:** the tray *Quit overlay* click (host-side unit test only), fullscreen
 hiding (needs a full-screen app), mixed-DPI / multi-monitor (this box is one 1920×1080 at 120 DPI), and
 whether the Settings pane renders correctly in the app until a human reloads and looks.

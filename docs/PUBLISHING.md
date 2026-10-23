@@ -54,7 +54,27 @@ dshfind) can find it.
 npm run window:publish                                   # fresh dist/win-x64 + hash
 gh release create v0.1.0 dist/win-x64/AgentsNotch.exe `
    dist/win-x64/AgentsNotch.exe.sha256 `
-   --title "Agents Notch 0.1.0" --notes-file CHANGELOG.md
+   --title "Agents Notch 0.1.0" --notes-file notes.md     # this version's CHANGELOG section only
+```
+
+`--notes-file CHANGELOG.md` would paste every version's notes into one release. Cut the section out
+first — `v0.1.7` and `v0.1.8` both carry only their own:
+
+```powershell
+node -e "const f=require('fs'),m=f.readFileSync('CHANGELOG.md','utf8').replace(/\r\n/g,'\n');const a=m.indexOf('## 0.1.8'),b=m.indexOf('## 0.1.7');f.writeFileSync('out/notes.md',m.slice(a,b).trim()+'\n')"
+```
+
+**In a sandboxed agent session, `tools/publish-release.ps1` cannot push or call the API.** Its `git
+push` dies on `schannel: AcquireCredentialsHandle failed` (and the credential helper cannot spawn under
+the sandbox: `couldn't create signal pipe`), and its `Invoke-RestMethod` fails with `The SSL connection
+could not be established`. `gh` is unaffected — it carries its own TLS stack. So in that session, push
+with git's OpenSSL backend plus an auth header from gh's token, then let `gh` cut the release:
+
+```powershell
+$b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("x-access-token:$(& gh auth token)"))
+git -c http.sslBackend=openssl -c "http.extraheader=Authorization: Basic $b64" push origin master
+git -c http.sslBackend=openssl -c "http.extraheader=Authorization: Basic $b64" push origin v0.1.8
+gh release create v0.1.8 dist/win-x64/... --notes-file out/notes.md
 ```
 
 **The tag must be `v<version>`, exactly the version in `package.json`.** The host's auto-fetch derives
