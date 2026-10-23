@@ -12,6 +12,7 @@ node_modules/
 
 # Anything a run leaves behind.
 /test/tmp/
+/out/
 *.log
 
 # npm pack output

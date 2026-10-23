@@ -1,5 +1,11 @@
 # Design renders — agent overlay
 
+> **Superseded by 0.1.8.** These are the round-10/11 renders, kept as the record of what was locked
+> then. Round 12 replaced two of their ideas: the state **badge** is now a **ring** around the bot
+> (with a spinner while it works), and the **chip column** is gone — every other session is one row
+> on a scrolling list. The binary is `AgentsNotch.exe`, not `AgentOverlay.exe`. Pictures of the
+> shipped notch live in `../`: `hero.png`, `island.png`, `faces.png`, `board-*.png`.
+
 The board (the one in `V-states.png`) with the bot animated and rimmed in its session's
 identity colour. Drawn in WPF — the same stack the real overlay will use — and rendered at 2×
 over a simulated light desktop. Every shape, shadow and glyph is something `AgentOverlay.exe`
