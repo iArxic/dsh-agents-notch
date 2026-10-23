@@ -1,4 +1,4 @@
-"""The README's pictures: the hero, the states sheet and the demo GIF.
+"""The README's pictures: the hero, the sheets (states, island, faces), the framed boards and the film.
 
 Every notch in them is drawn by the window itself (`--shot`, `--record`) from a state file this
 script writes; Pillow only lays those renders onto a backdrop and sets the type. Nothing here
@@ -9,12 +9,11 @@ re-draws the notch, so the pictures cannot drift from what the window draws.
     python tools/readme-media.py art        # docs/*.png, docs/demo.webp, and dist/media/demo.gif for GIF-only sites
 
 `record` and `shots` stop the live window first (the named mutex admits one notch); the host
-brings it back within ~15 s. Windows only, needs a built window (`npm run window:build`) and Pillow.
+brings it back on its own. Windows only, needs a built window (`npm run window:build`) and Pillow.
 """
 from __future__ import annotations
 
 import json
-import math
 import os
 import random
 import subprocess
@@ -33,16 +32,22 @@ FONTS = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
 # the product's own vocabulary (docs/design/README.md)
 WORKING, ATTENTION, DONE, FAILED, IDLE = "#6AA8FF", "#FFC15E", "#4ADE80", "#FF6B6B", "#8E8E93"
 INK, MUTED, FAINT = "#F5F5F7", "#A1A1AA", "#6B6B76"
+ACCENT = "#5EEAD4"
+
+# Where the big bot sits in a `--shot` (4x the window's design units): the A1 sheet hangs at x 80,
+# y 29, and the 60 px bot is placed at (20, 16) inside it with its 2.5 px rim margin.
+ORB_CX, ORB_CY = 4 * (80 + 20 + 2.5 + 30), 4 * (29 + 16 + 2.5 + 30)
 
 
-# ── state files ──────────────────────────────────────────────────────────────────────────────────
+# ── state files (docs/CONTRACT.md, schema 4) ─────────────────────────────────────────────────────
 
-def session(sid, title, project, status, since, identity, label, tokens, steps, approval=None):
+def session(sid, title, project, status, since, identity, label, tokens, steps, approval=None, kind="tool",
+            streak=0):
     return {
         "id": sid, "title": title, "project": project, "cwd": f"C:\\Projects\\{project}",
-        "status": status, "since": since, "activity": {"kind": "tool", "label": label},
+        "status": status, "since": int(since), "activity": {"kind": kind, "label": label},
         "approval": approval, "steps": steps, "identity": identity, "origin": "",
-        "parentSession": "", "contextTokens": tokens,
+        "parentSession": "", "contextTokens": tokens, "errorStreak": streak, "approvedAt": None,
     }
 
 
@@ -54,23 +59,23 @@ def state(sessions, wall, budget=1_000_000):
     count = {k: sum(1 for s in rows if s["status"] == k) for k in ORDER}
     top = next((k for k in ("attention", "error", "working", "done") if count[k]), "idle")
     return {
-        "schema": 3, "plugin": "dsh-agents-notch/host", "wallMs": wall, "hostPid": 4242,
-        "retire": "route", "context": {"budget": budget, "hotAt": 0.5},
-        "settings": {"scale": 1.0, "screen": "primary", "anchor": "top-center", "maxRows": 3,
-                     "hideFullscreen": True},
+        "schema": 4, "plugin": "dsh-agents-notch/host", "wallMs": int(wall), "hostPid": 4242,
+        "retire": "route", "finishedUrl": None, "openUrl": None,
+        "context": {"budget": budget, "hotAt": 0.5},
+        "settings": {"scale": 1.0, "screen": "primary", "anchor": "top-center", "maxRows": 6,
+                     "hideFullscreen": True, "opacity": 1.0, "motion": "on", "showProject": True, "showDone": True},
         "summary": {"status": top, **count, "total": len(rows)},
         "sessions": rows,
     }
 
 
-A, B, C = "session-a1c4e7f0-auth", "session-b2d5f8a1-parser", "session-c3e6a9b2-deps"
-PUSH = {"toolName": "pwsh", "reason": "git push origin main"}
+A, B, C, D = "session-a1c4e7f0-auth", "session-b2d5f8a1-parser", "session-c3e6a9b2-deps", "session-d4f7b0c3-docs"
+PUSH = {"toolName": "pwsh", "reason": "wants to push 3 commits to origin/main"}
 
-
-# The story the GIF tells, in the window's own motion-clock ms: three sessions working; one stops
-# on you; the board unfolds on it; you answer it; it finishes; the board folds away. It is the SAME
-# session throughout because an open board pins its front row — it does not jump under the pointer.
-ASKS, OPEN, ANSWERED, FINISHES, CLOSE, END = 1500, 3000, 4600, 6400, 9200, 10600
+# The story the film tells, in the window's own motion-clock ms: three sessions working, the tool light
+# running along the tab; one stops on you and the tab grows into the alert; the board unfolds on it (the
+# alert folds into its headline); you answer; the board folds; it finishes, and the tab says so.
+ASKS, OPEN, ANSWERED, CLOSE, FINISHES, END = 1200, 3900, 5700, 7500, 8300, 10900
 
 
 def demo_sessions(now, clock):
@@ -78,7 +83,7 @@ def demo_sessions(now, clock):
     m = 60_000
     ago = lambda at: int(now - max(0, clock - at))     # the window reads `since` as an integer; 1.0e12 is 0 to it
     a = session(A, "Refactor the auth middleware", "api-server", "working", now - 14 * m, "teal", "pwsh", 182_400, 9)
-    b = session(B, "Write tests for the parser", "lexer", "working", now - 6 * m, "violet", "node --test", 96_300, 14)
+    b = session(B, "Write tests for the parser", "lexer", "working", now - 6 * m, "violet", "node --test", 96_300, 14, kind="thinking")
     c = session(C, "Bump deps and fix the build", "web-app", "working", now - 3 * m, "coral", "npm run build", 241_900, 6)
     if clock >= ASKS:
         a.update(status="attention", since=ago(ASKS), approval=PUSH)
@@ -110,6 +115,10 @@ def now_ms():
     return int(time.time() * 1000)
 
 
+def env():
+    return {**os.environ, "DOTNET_BUNDLE_EXTRACT_BASE_DIR": str(OUT / "bundle")}
+
+
 # ── the window, driven ───────────────────────────────────────────────────────────────────────────
 
 def record():
@@ -127,14 +136,13 @@ def record():
     proc = subprocess.Popen([str(EXE), "--state", str(st), "--no-tray", "--force-show",
                              "--record", str(rec), "--record-ms", str(END - 600), "--fps", "25",
                              "--open-at", str(OPEN), "--close-at", str(CLOSE),
-                             "--log", str(OUT / "rec.log")],
-                            env={**os.environ, "DOTNET_BUNDLE_EXTRACT_BASE_DIR": str(OUT / "bundle")})
+                             "--log", str(OUT / "rec.log")], env=env())
     while proc.poll() is None:
         clock = 0
         if tsv.exists():
             lines = tsv.read_text().strip().splitlines()
             if len(lines) > 1:
-                clock = float(lines[-1].split("	")[1])
+                clock = float(lines[-1].split("\t")[1])
         # one frame ahead: the window reads the file right after stamping a frame
         write_state(st, state(demo_sessions(now_ms(), clock + 40), now_ms()))
         time.sleep(0.05)
@@ -143,13 +151,34 @@ def record():
 
 def shot(name, payload, opened=False, extra=()):
     st = OUT / f"{name}.json"
+    png = OUT / "shots" / f"{name}.png"
     write_state(st, payload)
-    stop_live_window()
-    args = [str(EXE), "--state", str(st), "--no-tray", "--force-show", "--shot", str(OUT / "shots" / f"{name}.png"),
+    args = [str(EXE), "--state", str(st), "--no-tray", "--force-show", "--shot", str(png),
             "--log", str(OUT / f"{name}.log"), *extra]
     if opened:
         args.append("--open")
-    subprocess.run(args, env={**os.environ, "DOTNET_BUNDLE_EXTRACT_BASE_DIR": str(OUT / "bundle")}, timeout=30)
+    png.unlink(missing_ok=True)
+    # The live host respawns its window on its own schedule; when it lands between the kill and the
+    # render, the render meets the mutex and writes nothing — so a missing PNG is simply tried again.
+    for _ in range(4):
+        stop_live_window()
+        subprocess.run(args, env=env(), timeout=30)
+        if png.exists():
+            return
+    print("no still for", name, "- see", OUT / f"{name}.log")
+
+
+# The faces sheet: each face in the state that wears it, and what it means.
+FACES = [
+    ("focused", "working", "running a tool"), ("thinking", "working", "between tools"),
+    ("determined", "working", "a long, busy turn"), ("tired", "working", "working 30 min+"),
+    ("glances", "working", "a new row arrived"), ("confused", "working", "a tool just failed"),
+    ("dizzy", "working", "tools failing in a row"), ("love", "working", "you allowed it"),
+    ("pleading", "attention", "needs you"), ("peeking", "attention", "also waiting"),
+    ("done", "done", "finished"), ("starry", "done", "the finish notice"),
+    ("wink", "done", "you closed it out"), ("xx", "error", "failed"),
+    ("asleep", "stale", "host offline"),
+]
 
 
 def shots():
@@ -157,12 +186,13 @@ def shots():
     # The window ages a row against its own clock, so `since` is real time; `wallMs` stays far in
     # the future so a still is never photographed as a stale host — except the one that is meant to be.
     now, m, far = now_ms(), 60_000, 9_999_999_999_999
-    a = lambda **k: session(A, "Refactor the auth middleware", "api-server", k.get("s", "working"), now - k.get("age", 14 * m), "teal", "pwsh", 182_400, 9, k.get("ap"))
-    b = lambda **k: session(B, "Write tests for the parser", "lexer", k.get("s", "working"), now - k.get("age", 6 * m), "violet", "node --test", 96_300, 14)
+    a = lambda **k: session(A, "Refactor the auth middleware", "api-server", k.get("s", "working"), now - k.get("age", 14 * m), "teal", "pwsh", 182_400, k.get("steps", 9), k.get("ap"))
+    b = lambda **k: session(B, "Write tests for the parser", "lexer", k.get("s", "working"), now - k.get("age", 6 * m), "violet", "node --test", 96_300, 14, kind="thinking")
     c = lambda **k: session(C, "Bump deps and fix the build", "web-app", k.get("s", "working"), now - k.get("age", 3 * m), "coral", "npm run build", 241_900, 6)
+    d = lambda **k: session(D, "Update the API docs", "api-server", k.get("s", "done"), now - k.get("age", 11 * m), "lime", "apply_patch", 64_000, 8)
     sets = {
         "working": [a(), b(), c()],
-        "attention": [a(s="attention", ap=PUSH, age=1 * m), b(), c()],
+        "attention": [a(s="attention", ap=PUSH, age=1 * m), b(), c(), d()],
         "failed": [c(s="error", age=2 * m), a(), b()],
         "done": [c(s="done", age=20 * 1000), a(s="done", age=9 * m)],
     }
@@ -170,10 +200,26 @@ def shots():
     for name, rows in sets.items():
         shot(f"tab-{name}", state(rows, far), extra=settled)
     shot("board-attention", state(sets["attention"], far), True, settled)
-    # one session each, so the big bot stands alone: the faces strip
-    for name, row in {"working": a(), "attention": a(s="attention", ap=PUSH, age=1 * m),
-                      "done": a(s="done", age=20 * 1000), "failed": a(s="error", age=2 * m)}.items():
-        shot(f"face-{name}", state([row], far), True, settled)
+    # the island: the tab grown into an alert, one per kind
+    shot("island-x1", state(sets["attention"], far), extra=("--island", "x1", *settled))
+    shot("island-x4", state([session("session-e5-fail", "Fix the e2e suite", "web-app", "error", now - 2 * m, "pink", "playwright test", 80_000, 11), a(), b()], far),
+         extra=("--island", "x4", *settled))
+    shot("island-d1", state([c(s="done", age=5 * 1000), a(), b()], far), extra=("--island", "d1", *settled))
+    # the faces: one session each, so the big bot stands alone in the state that wears the face
+    for face, status, _ in FACES:
+        if status == "stale":
+            payload = state([a()], now - 2 * 60 * m)
+        else:
+            row = a(s=status, ap=PUSH if status == "attention" else None, age=1 * m, steps=12)
+            payload = state([row], far)
+        shot(f"face-{face}", payload, True, ("--face", face, *settled))
+    # more sessions than the board shows: the list scrolls
+    many = [a(s="attention", ap=PUSH, age=1 * m), b(), c(), d(),
+            session("session-e5", "Port the lexer to wasm", "lexer", "working", now - 22 * m, "pink", "cargo build", 120_000, 30),
+            session("session-f6", "Triage the flaky e2e test", "web-app", "error", now - 4 * m, "teal", "playwright", 80_000, 11),
+            session("session-g7", "Draft the release notes", "api-server", "done", now - 30 * m, "violet", "git log", 30_000, 4),
+            session("session-h8", "Profile the cold start", "web-app", "working", now - 9 * m, "lime", "node --cpu-prof", 150_000, 7, kind="thinking")]
+    shot("board-many", state(many, far), True, settled)
     shot("board-nobudget", state(sets["working"], far, budget=None), True, settled)
     shot("board-stale", state(sets["working"], now - 2 * 60 * m), True, settled)
     print("stills ->", OUT / "shots")
@@ -199,18 +245,18 @@ def hexc(h, a=255):
 
 
 def blob(size, cx, cy, r, color, alpha):
-    layer = Image.new("RGBA", size, (0, 0, 0, 0))
-    ImageDraw.Draw(layer).ellipse((cx - r, cy - r, cx + r, cy + r), fill=hexc(color, alpha))
-    return layer.filter(ImageFilter.GaussianBlur(r * 0.55))
+    layer_ = Image.new("RGBA", size, (0, 0, 0, 0))
+    ImageDraw.Draw(layer_).ellipse((cx - r, cy - r, cx + r, cy + r), fill=hexc(color, alpha))
+    return layer_.filter(ImageFilter.GaussianBlur(r * 0.55))
 
 
 def wallpaper(w, h, seed=0, grain=True):
     """A night desktop: a soft light under the notch so its black reads as a shape, and an aurora in
-    the identity hues low down, where nothing has to be read over it. `grain=False` for the GIF."""
+    the identity hues low down, where nothing has to be read over it. `grain=False` for the film."""
     img = Image.new("RGBA", (w, h), hexc("#090A12"))
     img.paste(Image.new("RGBA", (w, h), hexc("#12122A")), (0, 0), Image.linear_gradient("L").resize((w, h)))
     lights = [
-        (0.50, -0.05, 0.42, "#5EEAD4", 46), (0.12, 1.02, 0.46, "#7C5CFF", 150),
+        (0.50, -0.05, 0.42, ACCENT, 46), (0.12, 1.02, 0.46, "#7C5CFF", 150),
         (0.48, 1.18, 0.36, "#FF7A59", 92), (0.88, 1.00, 0.42, "#2DD4BF", 118),
         (1.02, 0.28, 0.26, "#6AA8FF", 52), (-0.04, 0.30, 0.22, "#E879F9", 36),
     ]
@@ -255,46 +301,54 @@ def layer(size):
     return im, ImageDraw.Draw(im)
 
 
+def rounded(img, radius):
+    mask = Image.new("L", img.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, img.width - 1, img.height - 1), radius=radius, fill=255)
+    out = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    out.paste(img, (0, 0), mask)
+    return out
+
+
 def hero():
     W, H = 2560, 1280                       # 2x GitHub's 1280x640 social card
     canvas = wallpaper(W, H)
-    board = scaled(notch_crop(Image.open(OUT / "shots" / "board-attention.png")), 1320)
+    board = scaled(notch_crop(Image.open(OUT / "shots" / "board-attention.png")), 1240)
     canvas.alpha_composite(board, ((W - board.width) // 2, 0))
     # the top edge of the display the notch hangs from
     top, d = layer((W, H))
     d.rectangle((0, 0, W, 3), fill=hexc("#FFFFFF", 26))
     canvas = Image.alpha_composite(canvas, top)
 
-    y = board.height - 16
+    y = board.height + 18
     d = ImageDraw.Draw(canvas)
-    title = variable(156, 700)
+    title = variable(150, 700)
     left, right = "Agents ", "Notch"
     tw = d.textlength(left + right, font=title)
     x0 = (W - tw) / 2
     d.text((x0, y), left, font=title, fill=hexc(INK))
-    d.text((x0 + d.textlength(left, font=title), y), right, font=title, fill=hexc("#5EEAD4"))
-    d.text((W / 2, y + 206), "Which of your DeepSeek Harness sessions needs you, at a glance.",
-           font=variable(50, 400), fill=hexc("#C4C4D4"), anchor="ma")
+    d.text((x0 + d.textlength(left, font=title), y), right, font=title, fill=hexc(ACCENT))
+    d.text((W / 2, y + 196), "Which of your DeepSeek Harness sessions needs you, at a glance.",
+           font=variable(48, 400), fill=hexc("#C4C4D4"), anchor="ma")
 
-    chip_f = variable(38, 600)
-    chips = [("working", WORKING), ("needs you", ATTENTION), ("done", DONE), ("failed", FAILED)]
-    gap, padx, ch, dot = 22, 34, 78, 20
-    widths = [padx * 2 + dot + 18 + d.textlength(s, font=chip_f) for s, _ in chips]
-    x = (W - sum(widths) - gap * (len(chips) - 1)) / 2
-    cy = y + 318
     glass, g = layer((W, H))
-    for (s, col), cw in zip(chips, widths):
+    chip_f = variable(36, 600)
+    chips = [("working", WORKING), ("needs you", ATTENTION), ("done", DONE), ("failed", FAILED)]
+    gap, padx, ch, dot = 20, 32, 74, 18
+    widths = [padx * 2 + dot + 16 + d.textlength(t, font=chip_f) for t, _ in chips]
+    x = (W - sum(widths) - gap * (len(chips) - 1)) / 2
+    cy = y + 286
+    for (t, col), cw in zip(chips, widths):
         g.rounded_rectangle((x, cy, x + cw, cy + ch), radius=ch // 2, fill=hexc("#FFFFFF", 14), outline=hexc("#FFFFFF", 38), width=2)
         g.ellipse((x + padx, cy + (ch - dot) / 2, x + padx + dot, cy + (ch + dot) / 2), fill=hexc(col))
-        g.text((x + padx + dot + 18, cy + ch / 2 + 1), s, font=chip_f, fill=hexc(INK), anchor="lm")
+        g.text((x + padx + dot + 16, cy + ch / 2 + 1), t, font=chip_f, fill=hexc(INK), anchor="lm")
         x += cw + gap
 
     mono = font("CascadiaMono.ttf", 36)
     prompt, cmd = "> ", "dsh plugin --profile web add dsh-agents-notch"
     cw = d.textlength(prompt + cmd, font=mono) + 80
-    bx, by, bh = (W - cw) / 2, cy + ch + 64, 84
+    bx, by, bh = (W - cw) / 2, cy + ch + 52, 84
     g.rounded_rectangle((bx, by, bx + cw, by + bh), radius=18, fill=hexc("#000000", 120), outline=hexc("#FFFFFF", 30), width=2)
-    g.text((bx + 40, by + bh / 2), prompt, font=mono, fill=hexc("#5EEAD4"), anchor="lm")
+    g.text((bx + 40, by + bh / 2), prompt, font=mono, fill=hexc(ACCENT), anchor="lm")
     g.text((bx + 40 + d.textlength(prompt, font=mono), by + bh / 2), cmd, font=mono, fill=hexc("#E4E4EE"), anchor="lm")
     canvas = Image.alpha_composite(canvas, glass)
     canvas.convert("RGB").resize((W // 2, H // 2), Image.LANCZOS).save(DOCS / "hero.png", optimize=True)
@@ -304,10 +358,10 @@ def hero():
 def states_sheet():
     """One card per state: the folded tab on a slice of desktop, the name, and what it asks of you."""
     cards = [
-        ("tab-working", "Working", WORKING, "No ring. The quiet default: the bots just blink."),
+        ("tab-working", "Working", WORKING, "A blue arc turns. Light runs along the tab while a tool runs."),
         ("tab-attention", "Needs you", ATTENTION, "Amber ring. A question or an approval is waiting."),
         ("tab-done", "Done", DONE, "Green ring and the ^^ face, until you close it out."),
-        ("tab-failed", "Failed", FAILED, "Red ring. The turn ended on an error."),
+        ("tab-failed", "Failed", FAILED, "Red ring and the x x face. The turn ended on an error."),
     ]
     S = 2                                   # drawn at 2x, saved at 1x
     cw, chh, gap = 600 * S, 236 * S, 20 * S
@@ -317,12 +371,12 @@ def states_sheet():
         x, y = (i % 2) * (cw + gap), (i // 2) * (chh + gap)
         card = wallpaper(cw, chh, seed=11 + i)
         tab = notch_crop(Image.open(OUT / "shots" / f"{name}.png"))
-        tab = scaled(tab, int(tab.width * S / 4 * 1.9))
+        tab = scaled(tab, min(cw - 80 * S, int(tab.width * S / 4 * 1.9)))
         card.alpha_composite(tab, ((cw - tab.width) // 2, 0))
         d = ImageDraw.Draw(card)
         d.ellipse((40 * S, 150 * S, 54 * S, 164 * S), fill=hexc(col))
         d.text((66 * S, 157 * S), label, font=variable(27 * S, 650), fill=hexc(INK), anchor="lm")
-        d.text((40 * S, 198 * S), line, font=variable(17 * S, 400), fill=hexc("#B4B4C6"), anchor="lm")
+        d.text((40 * S, 198 * S), line, font=variable(16 * S, 400), fill=hexc("#B4B4C6"), anchor="lm")
         edge, e = layer((cw, chh))
         e.rounded_rectangle((0, 0, cw - 1, chh - 1), radius=24 * S, outline=hexc("#FFFFFF", 34), width=S)
         card = Image.alpha_composite(card, edge)
@@ -333,78 +387,91 @@ def states_sheet():
     print("states ->", DOCS / "states.png")
 
 
+def island_sheet():
+    """The three alerts the tab grows into, stacked on one slice of desktop, each with its name."""
+    rows = [("island-x1", "Needs you", ATTENTION, "the reason, and Open — which switches the app to that session"),
+            ("island-x4", "Failed", FAILED, "which session, and the last tool it ran"),
+            ("island-d1", "Finished", DONE, "a two-second notice, then back to the tab")]
+    S = 2
+    W, rowh, top = 1200 * S, 150 * S, 24 * S
+    H = top + rowh * len(rows) + 10 * S
+    canvas = wallpaper(W, H, seed=31)
+    d = ImageDraw.Draw(canvas)
+    for i, (name, label, col, line) in enumerate(rows):
+        isl = notch_crop(Image.open(OUT / "shots" / f"{name}.png"))
+        isl = scaled(isl, int(isl.width * S / 4 * 1.55))
+        y = top + i * rowh
+        # a slice of screen edge for each, so every island hangs from a top, as it does on the desktop
+        edge, e = layer((W, H))
+        e.rectangle((380 * S, y, W - 24 * S, y + 2), fill=hexc("#FFFFFF", 22))
+        canvas = Image.alpha_composite(canvas, edge)
+        canvas.alpha_composite(isl, (380 * S + (W - 404 * S - isl.width) // 2, y))
+        d = ImageDraw.Draw(canvas)
+        d.ellipse((36 * S, y + 34 * S, 50 * S, y + 48 * S), fill=hexc(col))
+        d.text((62 * S, y + 41 * S), label, font=variable(26 * S, 650), fill=hexc(INK), anchor="lm")
+        tw = 300 * S
+        words, lines, cur = line.split(), [], ""
+        f = variable(15 * S, 400)
+        for wd in words:
+            test = (cur + " " + wd).strip()
+            if d.textlength(test, font=f) > tw and cur:
+                lines.append(cur); cur = wd
+            else:
+                cur = test
+        lines.append(cur)
+        for j, ln in enumerate(lines):
+            d.text((36 * S, y + (72 + j * 22) * S), ln, font=f, fill=hexc("#B4B4C6"), anchor="lm")
+    rounded(canvas, 28 * S).resize((W // S, H // S), Image.LANCZOS).save(DOCS / "island.png", optimize=True)
+    print("island ->", DOCS / "island.png")
+
+
 def faces():
-    """The big bot in each state, cut from single-session boards so no stack bubble sits beside it."""
-    states = [("working", "working", WORKING), ("attention", "needs you", ATTENTION),
-              ("done", "done", DONE), ("failed", "failed", FAILED)]
-    S, tile, label_h, gap = 2, 360, 76, 24
-    W = tile * len(states) + gap * (len(states) - 1)
-    H = tile + label_h
+    """Every face, cut from single-session boards: the big bot, its ring or spinner, and when it shows."""
+    S, tile, label_h, gap, cols = 2, 300, 104, 22, 5
+    rows_n = (len(FACES) + cols - 1) // cols
+    W = tile * cols + gap * (cols - 1)
+    H = (tile + label_h) * rows_n + gap * (rows_n - 1)
     canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    for i, (name, label, col) in enumerate(states):
-        shot = Image.open(OUT / "shots" / f"face-{name}.png")
-        cx, cy, _ = find_orb(shot)
-        half = 205                          # one scale for every tile: the face, its state ring, a little glow
-        orb = shot.crop((cx - half, cy - half, cx + half, cy + half))
-        card_bg = orb.getpixel((4, 2 * half - 4))   # the card's own colour, so the label strip has no seam
-        if name == "working":
-            # no state ring, so the context bar sits closer than a ring would: fade out what is below the face
-            fade = Image.linear_gradient("L").resize((2 * half, 34))
-            cover = Image.new("L", (2 * half, 2 * half), 0)
-            cover.paste(fade, (0, half + 150))
-            cover.paste(255, (0, half + 184, 2 * half, 2 * half))
-            orb.paste(Image.new("RGBA", orb.size, card_bg), (0, 0), cover)
-        # feather the bottom into the label strip: the card's glow is not flat, the strip is
-        feather = Image.new("L", orb.size, 0)
-        feather.paste(Image.linear_gradient("L").resize((2 * half, 16)), (0, 2 * half - 16))
-        orb.paste(Image.new("RGBA", orb.size, card_bg), (0, 0), feather)
-        orb = orb.resize((tile, tile), Image.LANCZOS)
-        t = Image.new("RGBA", (tile, H), card_bg)
+    half = 190
+    tone = {"working": WORKING, "attention": ATTENTION, "done": DONE, "error": FAILED, "stale": IDLE}
+    for i, (face, status, meaning) in enumerate(FACES):
+        shot_img = Image.open(OUT / "shots" / f"face-{face}.png").convert("RGBA")
+        bg = Image.new("RGBA", shot_img.size, hexc("#08080A"))
+        bg.alpha_composite(shot_img)
+        # the board's text column starts just right of the bot; blank it, so no letter edges into a tile
+        ImageDraw.Draw(bg).rectangle((4 * (80 + 96) - 6, 0, bg.width, bg.height), fill=hexc("#08080A"))
+        orb = bg.crop((ORB_CX - half, ORB_CY - half, ORB_CX + half, ORB_CY + half)).resize((tile, tile), Image.LANCZOS)
+        t = Image.new("RGBA", (tile, tile + label_h), hexc("#08080A"))
         t.alpha_composite(orb, (0, 0))
         d = ImageDraw.Draw(t)
-        f = variable(30 * S // 2 + 6, 600)
-        tw = d.textlength(label, font=f) + 30
+        f, g = variable(30, 650), variable(21, 400)
+        name = "^^" if face == "done" else "x x" if face == "xx" else face
+        tw = d.textlength(name, font=f) + 26
         x = (tile - tw) / 2
-        d.ellipse((x, tile + 16, x + 18, tile + 34), fill=hexc(col))
-        d.text((x + 30, tile + 25), label, font=f, fill=hexc(INK), anchor="lm")
-        mask = Image.new("L", (tile, H), 0)
-        ImageDraw.Draw(mask).rounded_rectangle((0, 0, tile - 1, H - 1), radius=36, fill=255)
-        canvas.paste(t, (i * (tile + gap), 0), mask)
-    canvas.resize((W // S, H // S), Image.LANCZOS).save(DOCS / "faces.png", optimize=True)
+        d.ellipse((x, tile + 14, x + 14, tile + 28), fill=hexc(tone[status]))
+        d.text((x + 26, tile + 21), name, font=f, fill=hexc(INK), anchor="lm")
+        d.text((tile / 2, tile + 64), meaning, font=g, fill=hexc("#A9A9B8"), anchor="mm")
+        cx, cy = (i % cols) * (tile + gap), (i // cols) * (tile + label_h + gap)
+        canvas.paste(rounded(t, 30), (cx, cy))
+    canvas.resize((W * 3 // 4, H * 3 // 4), Image.LANCZOS).save(DOCS / "faces.png", optimize=True)
     print("faces ->", DOCS / "faces.png")
 
 
-def find_orb(shot):
-    """The face is the only near-white disc in the board's left column — below the tab's own small
-    bots, and left of the title, which is white too. Its centroid and radius, in shot pixels."""
-    top, right = 110, 600
-    g = shot.convert("L").crop((0, top, right, shot.height))
-    xs = ys = n = 0
-    for (x, y), v in zip(((x, y) for y in range(g.height) for x in range(g.width)), g.getdata()):
-        if v > 228:
-            xs += x; ys += y; n += 1
-    return xs // n, ys // n + top, int(math.sqrt(n / math.pi))
-
-
-def framed(name, out):
+def framed(name, out, width=1520):
     """A board on a slice of desktop, for the README's in-line examples."""
     board = notch_crop(Image.open(OUT / "shots" / f"{name}.png"))
-    board = scaled(board, 1520)
+    board = scaled(board, width)
     W, H = board.width + 200, board.height + 40
     canvas = wallpaper(W, H, seed=21)
     canvas.alpha_composite(board, (100, 0))
-    mask = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, W - 1, H - 1), radius=40, fill=255)
-    outp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    outp.paste(canvas, (0, 0), mask)
-    outp.resize((W // 2, H // 2), Image.LANCZOS).save(DOCS / out, optimize=True)
+    rounded(canvas, 40).resize((W // 2, H // 2), Image.LANCZOS).save(DOCS / out, optimize=True)
     print(name, "->", DOCS / out)
 
 
 def film(width, fps=20):
     """The recorded frames over a smooth wallpaper, with delays cut from the window's own stamps."""
     rec = OUT / "rec"
-    rows = [l.split("	") for l in (rec / "frames.tsv").read_text().splitlines()[1:] if l.strip()]
+    rows = [l.split("\t") for l in (rec / "frames.tsv").read_text().splitlines()[1:] if l.strip()]
     kept, last = [], -1e9
     for n, ms in rows:
         if float(ms) - last >= 1000 / fps - 1:
@@ -423,7 +490,8 @@ def film(width, fps=20):
     for i, (p, ms) in enumerate(kept):
         img = Image.open(p).crop((l - margin, 0, r + margin, H))
         frames.append(Image.alpha_composite(smooth, img).convert("RGB").resize(size, Image.LANCZOS))
-        nxt = kept[i + 1][1] if i + 1 < len(kept) else ms + 1600
+        # the last frame lasts one frame too: a hold before the loop froze the tool light mid-sweep
+        nxt = kept[i + 1][1] if i + 1 < len(kept) else ms + 1000 / fps
         delays.append(max(20, int(round((nxt - ms) / 10.0)) * 10))
     return frames, delays
 
@@ -460,8 +528,9 @@ def main():
     elif cmd == "shots":
         shots()
     elif cmd == "art":
-        hero(); states_sheet(); faces()
-        framed("board-nobudget", "board-nobudget.png"); framed("board-stale", "board-stale.png")
+        hero(); states_sheet(); island_sheet(); faces()
+        framed("board-many", "board-many.png"); framed("board-nobudget", "board-nobudget.png")
+        framed("board-stale", "board-stale.png")
         demo_webp(); demo_gif()
     else:
         sys.exit(__doc__)
