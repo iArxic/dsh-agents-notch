@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.1.8 — the bots get faces, and the tab speaks up
+
+**One list instead of two.** The board listed every session twice — task lines on the left, project
+chips on the right — and the chips' column truncated the titles beside them. The front session is now
+the headline, and every other session is one row: a small bot in its colours, its title, what it is doing
+in a word, and its age. The board is as tall as its rows, and it is one surface with the tab, flaring out
+of the top of the screen like a real notch.
+
+**The headline says what the bot is doing.** `activity` and `steps` were parsed and never drawn. A working
+session now shows its tool and step with the context bar; a waiting one shows its approval reason in full
+with `Open ↗`; a finished or failed one shows how it ended with `✕ close`.
+
+**The tab grows into an alert.** When a session starts waiting on you, or fails, the tab opens for six
+seconds into an island with the bot, the reason and an Open button; a finish gets a two-second notice.
+Only fresh events are announced, so a respawned window does not repeat old news. While any session runs a
+tool, a shimmer runs along the tab's lower edge, and the tab keeps its counts next to the urgent word.
+
+**Sixteen faces.** Thinking, focused, determined, tired, confused and dizzy (tool errors in a row),
+pleading and peeking (needs you), surprised, ^^, starry, wink, love
+(you just approved it), ✕ ✕, and asleep when the host goes quiet — with motion for the transitions. The
+state badge is gone: the rim is the session, the ring is the state, and a working bot wears a spinner.
+
+**Open takes you to the session, and a question says what it asks.** Open, the island's button and a
+double-click on a row switch the app to that session (through the plugin's in-app half and the app's own
+`openSession`), and bring the app forward — the `dsh://open` link alone could not, on Windows.
+A question from `ask_user_question` shows the question's own text instead of "has a question for you".
+
+**Every session, and a calmer surface.** The board lists every live session and scrolls past
+`maxRows` (now "how many are visible"). The working spinners turn together and slower. The tool light
+traces the tab's rounded lower edge and always finishes its sweep. The surprised "o" face is gone.
+
+**Schema 4.** Three facts for the faces, all optional to a schema-3 reader: `activity.kind: "thinking"`,
+`errorStreak` (a streak that the next clean result resets — never shown as a number), and `approvedAt`
+(only an *allowed* approval sets it).
+
 ## 0.1.7 — the notch stops lying when it cannot see the host
 
 **A window with no readable state file says so.** It used to start from the demo board, so a wrong

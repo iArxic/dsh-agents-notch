@@ -28,6 +28,7 @@ import {
 	fullContextTokens,
 	identityOf,
 	projectOf,
+	questionOf,
 	reasonKind,
 	retiredRows,
 	snapshot,
@@ -303,6 +304,66 @@ test("a failed tool leaves NO trace on the row — the human had the tail remove
 	assert.equal(row.toolFailures, undefined);
 	assert.equal("toolFailures" in row, false);
 	assert.equal(row.status, "working");
+});
+
+test("errors in a row are a streak the face wears, and one clean result ends it", () => {
+	// Schema 4: not the removed count — a moment. The window draws 1 as confused and 2+ as dizzy,
+	// never as a number, and the next clean result (or the next turn) puts the bot back to normal.
+	const record = createRecord("session-streak", 1_000);
+	applyEvent(record, { type: "turn/start" }, 1_000);
+	assert.equal(record.errorStreak, 0);
+	applyEvent(record, { type: "tool/result", data: { message: { isError: true } } }, 1_100);
+	assert.equal(record.errorStreak, 1);
+	// the harness's other failure marker, `data.error`, counts the same
+	applyEvent(record, { type: "tool/result", data: { message: {}, error: { name: "FsError", code: "ENOENT" } } }, 1_200);
+	assert.equal(snapshot([record])[0].errorStreak, 2);
+	applyEvent(record, { type: "tool/result", data: { message: { isError: false } } }, 1_300);
+	assert.equal(record.errorStreak, 0);
+	applyEvent(record, { type: "tool/result", data: { message: { isError: true } } }, 1_400);
+	applyEvent(record, { type: "turn/start" }, 1_500);
+	assert.equal(record.errorStreak, 0, "a new turn starts with a clean slate");
+});
+
+test("a tool that came back leaves the bot thinking, with the last tool's name kept", () => {
+	const record = fold([
+		{ type: "turn/start" },
+		{ type: "tool/call", data: { name: "dotnet build" } },
+	]);
+	assert.deepEqual(record.activity, { kind: "tool", label: "dotnet build" });
+	applyEvent(record, { type: "tool/result", data: { message: {} } });
+	assert.deepEqual(record.activity, { kind: "thinking", label: "dotnet build" });
+	applyEvent(record, { type: "tool/call", data: { name: "pwsh" } });
+	assert.deepEqual(snapshot([record])[0].activity, { kind: "tool", label: "pwsh" });
+	// a fresh turn is a model turn until its first tool, and the last turn's tool is not named
+	applyEvent(record, { type: "turn/start" });
+	assert.deepEqual(record.activity, { kind: "thinking", label: "" });
+	// before any turn at all there is no activity
+	assert.equal(createRecord("session-new").activity, null);
+});
+
+test("only an ALLOWED approval stamps approvedAt — a rejection is not a reason to be pleased", () => {
+	const record = createRecord("session-approve", 1_000);
+	applyEvent(record, { type: "turn/start" }, 1_000);
+	applyEvent(record, { type: "approval/asked", data: { toolName: "pwsh" } }, 1_100);
+	applyEvent(record, { type: "approval/decided", data: { id: "a1", outcome: "rejected" } }, 1_200);
+	assert.equal(record.approvedAt, null);
+	applyEvent(record, { type: "approval/asked", data: { toolName: "pwsh" } }, 1_300);
+	applyEvent(record, { type: "approval/decided", data: { id: "a2", outcome: "allowed-once" } }, 1_400);
+	assert.equal(record.approvedAt, 1_400);
+	assert.equal(snapshot([record])[0].approvedAt, 1_400);
+});
+
+test("a question carries its own text as the reason, read from the call's JSON arguments", () => {
+	const args = JSON.stringify({ questions: [{ id: "q1", question: "Which layout  do you want?", options: [] }, { id: "q2", question: "And the colour?" }] });
+	const record = fold([{ type: "turn/start" }, { type: "tool/call", data: { name: "ask_user_question", callId: "c1", arguments: args } }]);
+	assert.equal(record.status, STATUS.ATTENTION);
+	assert.deepEqual(record.approval, { toolName: "question", reason: "Which layout do you want? (+1 more)" });
+	// nothing usable is null, never a made-up sentence
+	assert.equal(questionOf("not json"), null);
+	assert.equal(questionOf(JSON.stringify({ questions: [] })), null);
+	assert.equal(questionOf(undefined), null);
+	assert.equal(questionOf({ questions: [{ question: "Plain object?" }] }), "Plain object?");
+	assert.ok(questionOf(JSON.stringify({ questions: [{ question: "x".repeat(400) }] })).length <= 160);
 });
 
 test("a turn that ENDED badly is an error row, which is where a failure belongs", () => {

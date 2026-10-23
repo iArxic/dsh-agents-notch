@@ -1,0 +1,272 @@
+{
+  "_note": "Twelve sessions: more than the board shows (maxRows 6 → 5 rows under the big bot), so the rows scroll. wallMs is far in the future so it is never stale.",
+  "schema": 4,
+  "plugin": "dsh-agents-notch/host",
+  "wallMs": 9999999999999,
+  "hostPid": 4242,
+  "retire": "route",
+  "context": {
+    "budget": 1000000,
+    "hotAt": 0.5
+  },
+  "settings": {
+    "scale": 1.0,
+    "screen": "primary",
+    "anchor": "top-center",
+    "maxRows": 6,
+    "hideFullscreen": true
+  },
+  "summary": {
+    "status": "attention",
+    "working": 7,
+    "attention": 1,
+    "done": 3,
+    "error": 1,
+    "total": 12
+  },
+  "sessions": [
+    {
+      "id": "session-many-00",
+      "title": "Argon 0/4 on laptop — fixed",
+      "project": "blindKnifeArgon",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "working",
+      "since": 1792584337758,
+      "activity": {
+        "kind": "tool",
+        "label": "roblox_verify"
+      },
+      "approval": null,
+      "steps": 3,
+      "identity": "teal",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    },
+    {
+      "id": "session-many-01",
+      "title": "Port the window half to AgentsNotch",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "working",
+      "since": 1792584397758,
+      "activity": {
+        "kind": "tool",
+        "label": "dotnet build"
+      },
+      "approval": null,
+      "steps": 4,
+      "identity": "violet",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    },
+    {
+      "id": "session-many-02",
+      "title": "Fix the seek bug in the knife trail",
+      "project": "swordsGo",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "done",
+      "since": 1792584457758,
+      "activity": {
+        "kind": "tool",
+        "label": "pwsh"
+      },
+      "approval": null,
+      "steps": 5,
+      "identity": "coral",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    },
+    {
+      "id": "session-many-03",
+      "title": "Homepage hero copy",
+      "project": "homepage",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "working",
+      "since": 1792584517758,
+      "activity": {
+        "kind": "thinking",
+        "label": "web_fetch"
+      },
+      "approval": null,
+      "steps": 6,
+      "identity": "lime",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    },
+    {
+      "id": "session-many-04",
+      "title": "Session log compaction",
+      "project": ".dsh",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "working",
+      "since": 1792584577758,
+      "activity": {
+        "kind": "tool",
+        "label": "apply_patch"
+      },
+      "approval": null,
+      "steps": 7,
+      "identity": "pink",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    },
+    {
+      "id": "session-many-05",
+      "title": "Rename the plugin and publish the window",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "attention",
+      "since": 1792584637758,
+      "activity": {
+        "kind": "tool",
+        "label": "pwsh"
+      },
+      "approval": {
+        "toolName": "pwsh",
+        "reason": "wants to delete 14 files under src/"
+      },
+      "steps": 8,
+      "identity": "violet",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    },
+    {
+      "id": "session-many-06",
+      "title": "Knife trail VFX pass",
+      "project": "swordsGo",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "working",
+      "since": 1792584697758,
+      "activity": {
+        "kind": "tool",
+        "label": "roblox_eval"
+      },
+      "approval": null,
+      "steps": 9,
+      "identity": "coral",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    },
+    {
+      "id": "session-many-07",
+      "title": "Write tests for the parser",
+      "project": "lexer",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "done",
+      "since": 1792584757758,
+      "activity": {
+        "kind": "tool",
+        "label": "node"
+      },
+      "approval": null,
+      "steps": 10,
+      "identity": "teal",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    },
+    {
+      "id": "session-many-08",
+      "title": "Bump deps and fix the build",
+      "project": "web-app",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "done",
+      "since": 1792584817758,
+      "activity": {
+        "kind": "tool",
+        "label": "pnpm"
+      },
+      "approval": null,
+      "steps": 11,
+      "identity": "lime",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    },
+    {
+      "id": "session-many-09",
+      "title": "Ship the published exe",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "error",
+      "since": 1792584877758,
+      "activity": {
+        "kind": "tool",
+        "label": "dotnet publish"
+      },
+      "approval": null,
+      "steps": 12,
+      "identity": "pink",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    },
+    {
+      "id": "session-many-10",
+      "title": "Review the README pictures",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "working",
+      "since": 1792584937758,
+      "activity": {
+        "kind": "thinking",
+        "label": "readme-media"
+      },
+      "approval": null,
+      "steps": 13,
+      "identity": "teal",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    },
+    {
+      "id": "session-many-11",
+      "title": "Audit the settings route",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "working",
+      "since": 1792584997758,
+      "activity": {
+        "kind": "tool",
+        "label": "curl"
+      },
+      "approval": null,
+      "steps": 14,
+      "identity": "violet",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    }
+  ]
+}

@@ -337,6 +337,125 @@ moment after it happens?"*.
   `after-ctx-settled.png` and the stacked pair beside them, in `docs/ai/agent-overlay/round-11/`.
 
 
+### Round 12 — the redesign: one list, the island, sixteen faces (2026-10-22/23)
+
+Two rounds of browser mockups (`out/review/variations*.html` at the time) against stills of the shipped
+window, and iArxic picked from them: **A1** (hero bot + one list), **R1** (today's tab, counts kept),
+**X1/X4** (the tab grows into an alert for 6 s), **L2** (a shimmer while tools run), **D1** (a 2 s
+finish notice), **all the faces**, and **F1d** (ring only, a spinner while working). What the stills of
+0.1.7 showed, and what each pick answers:
+
+* **The board listed every session twice** — task lines on the left, project chips on the right — and
+  the chips' 178 px truncated the titles beside them. A1 drops the chips: the front session is the
+  headline, every other session is one row with a 14 px bot, a word for what it does, and its age.
+* **The card was sized for six rows** (`CardBaseH` 198), so a two-row board was mostly empty glass. It is
+  now exactly header + rows.
+* **`activity` and `steps` were parsed and never drawn.** The headline's third line is now the tool in
+  monospace with `step N` and the context bar, or `thinking · after <tool>`; for a waiting session it
+  is the approval reason IN FULL (the 20-character trim is gone) with `Open ↗`.
+* **A failed bot wore three colours** — identity rim, red ring, red badge. The badge is gone (F1): the
+  rim says which session, the ring says the state, and a working bot gets the orbiting arc instead.
+* **The board and the tab are one surface now.** The sheet runs up behind the tab to the screen's top
+  edge and flares out through concave shoulders (`NotchShape`), the way a hardware notch meets the
+  bezel. A first build hung it from the tab's lower edge and it read as a card on a shelf.
+
+The faces live in `desktop/Faces.cs`: a pose table (which eye is a bar, an arc or hidden; how open; a
+fixed gaze) and an accent builder (brows, mouths, hearts, stars, spirals, a sweat drop), rebuilt only
+when the face changes, and never drawing outside the face. `Live.FaceOf` is the resting face — streak
+≥ 2 dizzy › 1 confused › working ≥ 30 min tired › steps ≥ 25 determined › thinking › focused; done
+rests in `^^` — and `Tick` plays the one-shot faces over it: surprised (a new session at the front,
+and the first beat of needs-you and failed), glances (a row was added), love (3 s after `approvedAt`),
+wink (you pressed ✕), starry (the D1 notice), and the falling-asleep strip when a live feed goes quiet.
+
+**Schema 4** adds what the faces need and nothing else: `activity.kind: "thinking"`, `errorStreak`,
+`approvedAt`. `tool/result` is read again — for the streak only. That is not the removed "N tools
+failed" tail: the streak is a moment that the next clean result clears, and it is drawn as a face, never
+as a number. Shapes were read from the harness's own declarations, not guessed: `ToolResultMessage
+.isError?: boolean` (plus an optional `data.error`) and `ApprovalOutcome = 'allowed-once' | 'rejected' |
+'cancelled' | 'unavailable'`, so a rejection never makes the bot happy.
+
+The island only announces what is NEW: a row whose status changed and whose `since` is under 10 s old,
+so the host respawning the window does not re-announce an hour-old question. An alert outranks a finish;
+hovering keeps it open (the pointer is there to read it or press Open), a click folds it and lets the
+board open, and it folds by itself if the session it names moves on.
+
+Two traps paid for on the way:
+
+* **`InvariantGlobalization` and a monospace font.** The first face with OpenType language tables the
+  window laid out (Consolas, for tool names) made WPF's font cache construct `CultureInfo("en")`, which
+  throws in invariant mode — every render crashed in `MajorLanguages..cctor`. `PredefinedCulturesOnly
+  =false` lets the culture be created (it behaves as the invariant one); invariant mode stays.
+* **`Start-Process` on the unsigned build raises a prompt nobody sees** and the call never returns (or
+  comes back "cancelled by the user"). Launch it with `&` or `Process.Start` with
+  `UseShellExecute = false` when measuring.
+
+Found live, the first day it ran (2026-10-23):
+
+* **Open did nothing.** `dsh://open` starts a second app instance that hands off to the running one
+  (`second-instance` → `focusPrimaryWindow` → `show()` + `focus()`; the app's `open-url` handler is
+  macOS-only in Electron), and on Windows that `focus()` is refused by the foreground lock, because
+  neither app process received the click. `AllowSetForegroundWindow` from the notch could not help: a
+  no-activate window has no foreground right to lend. The notch's process DID receive the click, so it
+  now finds the app's visible window and calls `SetForegroundWindow` itself, and uses the link only when
+  there is no window to raise.
+* **…and then it still did nothing, for two reasons the live `window.log` showed.** Every click logged
+  `no visible window found`: `Process.MainWindowHandle`, run as the host's child, found no window that
+  the same call from a shell found — so the search is `EnumWindows` + `GetWindowText` now. And the app
+  was usually ALREADY in front, on another session: what Open has to do is switch sessions. The app has
+  no deep link to one (`dsh://open`, `dsh://host`, `dsh://cordis` are the only routes in its bundle), but
+  its client modules call `ctx.uiWorkspace.openSession(id)` — the scheduler jumps to a session that way.
+  So Open POSTs `{ sessionId }` to the host's `/agents-notch/open` (published as `openUrl`), and
+  `lib/client.js`, already loaded in the app for the Settings pane, polls that door every 400 ms, takes
+  the intent once, and calls `openSession`.
+* **…and from the tray it still did nothing.** Closed to the tray, the app HIDES its main window (same
+  window, same title, `IsWindowVisible` false), and the search only took visible windows, so it fell
+  back to `dsh://open`, which did not bring it back. The search now also takes the hidden one — only an
+  unowned `Chrome_WidgetWin_*` window whose title ends in "DeepSeek Harness" — and shows it before
+  raising it.
+* **Raising is `SwitchToThisWindow`.** With the session switch working (the in-app half reports
+  `open-result: opened` to `host-report.jsonl`), the app still stayed minimized: every documented way to
+  the foreground — `SetForegroundWindow`, `AttachThreadInput` to the foreground thread, the Alt-key unlock,
+  `AllowSetForegroundWindow` for the app — was refused from this no-activate window, even right after the
+  click. It is not the job the host starts the window in: its UI limits read `0x0` (now the second line
+  of `window.log`). `SwitchToThisWindow(h, true)`, the call Task Manager's "Switch to" makes, raised the
+  minimized app from a shell with no input at all, and that is what Open does now; it checks 600 ms later
+  and, if the app is not in front, wakes it with `dsh://open` handed to Explorer and raises it again.
+* **`ctx.get("uiWorkspace")` was not how this half gets the service.** The app's client modules receive
+  it through `ctx.inject(["uiWorkspace"], scope => scope.uiWorkspace…)`; reading it with `ctx.get`
+  left the intent taken and nothing switched.
+* **A question said only "has a question for you".** `ask_user_question` arrives as a `tool/call`
+  whose `arguments` is the call's JSON as a string — `{ questions: [{ id, question, header, options }] }`
+  — so the host now publishes the first question as `approval.reason` ("(+N more)" for several).
+* **Thought dots and floating z's are gone.** At tab size they read as stray marks on the bots beside
+  the thinking one; every accent now stays inside the face.
+* **Proud and stuffed are gone** — the two faces that wore blush, which iArxic did not like. A finished
+  session rests in `^^`, and a context near compaction is still said by the amber bar, not by a face.
+* Synthetic clicks could not test any of this from the agent's shell: `SetCursorPos` reads back `0,0`
+  there, so a click script reports nothing whatever the window does. The proof of Open is a human click.
+
+Measured: the window's own frame stats on `working.json`, board open, 8 s each — 0.1.7 averaged 41 fps
+at 0.18 ms of work per frame, this build 37 fps at 0.18 ms. The per-frame costs this round added and
+then removed: re-measuring the tab's words every frame, re-assigning the dimmed face's colour, turning
+hidden spinners.
+
+### Round 13 — a list that scrolls, a calmer spinner, a rim that lights (2026-10-23)
+
+From iArxic, using it live:
+
+* **"seems to be capped at like 8 agents".** `maxRows` capped what the host PUBLISHED, so everything
+  past it existed only as "+N" in the tab. The host now publishes every live session (bounded at 40),
+  and `maxRows` is how many the window shows before the rows scroll — a clipped viewport moved by the
+  wheel, edges that fade only where there is more, and a thin thumb. Fixture: `many.json` (12 sessions).
+* **The spinner was distracting.** Every bot turned at its own phase, once every 1.2 s. They now share
+  one angle, once every 2.4 s, thinner and softer.
+* **The "o" face is gone** (surprised — on a new front session and the first beat of needs-you/failed).
+  The hop and the shake stay.
+* **The tool light blinked out.** A tool that returned in 50 ms took the shimmer with it mid-edge. A
+  sweep that has started now finishes, and only then does the light fade.
+* **It looked cut off.** The light was a 2 px bar with square ends laid across the tab. It now traces the
+  tab's lower rim (`LowerEdge`) — up into both rounded corners, fading where they turn — as a faint base
+  line with a highlight travelling along it.
+
 ## 3. The architecture — two parts, one job each
 
 ┌──────────────────────────── DSH host process ────────────────────────────┐

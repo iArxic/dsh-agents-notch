@@ -1,6 +1,6 @@
 # The contract between the two halves
 
-**Frozen — schema 3.** The host half computes these facts; the window half draws them where the
+**Frozen — schema 4.** The host half computes these facts; the window half draws them where the
 human is looking. Neither half may change a field here without the other changing in the same
 commit, and both are reviewed against this file. Read `docs/INTERNALS.md` for *why* any of it is
 shaped this way; this file is only *what*.
@@ -29,13 +29,15 @@ DSH host process                                  separate Windows process
   the state file, before it goes. The host quotes the last line in its `window-exit` report when the
   file was written during that window's life. It is a diagnosis, never a signal: nothing reads it to
   decide anything.
+- The live window (started without `--log`) keeps its own log in `window.log`, next to the state file,
+  truncated at each start. Like the crash log it is a diagnosis, never a signal: nothing reads it.
 - Anything else the two need belongs in this file first.
 
-## `state.json`, schema 3
+## `state.json`, schema 4
 
 ```jsonc
 {
-  "schema": 3,
+  "schema": 4,
   "plugin": "dsh-agents-notch/host",
   "wallMs": 1790000000000,        // host clock at write time; the window's liveness heartbeat
   "hostPid": 4242,
@@ -48,6 +50,12 @@ DSH host process                                  separate Windows process
                                   // when the human presses the ✕; NULL ⇒ it writes the same mark into
                                   // `$DSH_HOME/state/session-finished/manual.json` instead.
 
+  "openUrl": "http://127.0.0.1:51234/agents-notch/open",
+                                  // absolute URL of the "open this session" door, or NULL while there
+                                  // is no port. The window POSTs {sessionId} here from Open / a
+                                  // double-click; the plugin's in-app half takes it and calls
+                                  // uiWorkspace.openSession(id). NULL ⇒ Open only raises the app.
+
   "context": {
     "budget": 1000000,            // tokens the route's window holds, or NULL when the host does not know
     "hotAt": 0.5                  // fraction where the bar turns amber; the compaction trigger
@@ -57,7 +65,8 @@ DSH host process                                  separate Windows process
     "scale": 1.0,                 // 0.75 … 2.0, the size of the whole surface
     "screen": "primary",          // "primary" | "cursor" | "1" | "2" …  (1-based, as Windows numbers them)
     "anchor": "top-center",       // "top-center" | "top-left" | "top-right"
-    "maxRows": 6,                 // 3 … 10, how many sessions the board may show
+    "maxRows": 6,                 // 3 … 10, how many sessions the board SHOWS before its list scrolls
+                                  // (the big bot counts as one); sessions[] carries them all, up to 40
     "hideFullscreen": true,       // hide under a full-screen app
     "opacity": 1.0,               // 0.35 … 1.0, how much of the desktop it sits in front of
     "motion": "auto",             // "auto" (follow Windows' reduce-motion) | "on" | "off"
@@ -74,16 +83,34 @@ DSH host process                                  separate Windows process
     "cwd": "C:\\Users\\me\\Projects\\blindKnifeArgon",
     "status": "working",                      // working | attention | done | error
     "since": 1790000000000,                   // when it entered `status`
-    "activity": { "kind": "tool", "label": "roblox_verify" },   // null before the first tool
+    "activity": { "kind": "tool", "label": "roblox_verify" },   // null before the first turn;
+                                              // kind "tool" while a call is out, "thinking" once its
+                                              // result is back (label stays that tool's) or when a
+                                              // turn opens (label "")
     "approval": { "toolName": "pwsh", "reason": "…" },          // null unless blocked on the human
     "steps": 7,                               // tool calls this turn
     "identity": "teal",                       // teal | violet | coral | pink | lime — the session's colour
     "origin": "subagent",                     // "subagent", or "" for one the human opened
     "parentSession": "session-db65f92b-…",    // "" for a top-level session
-    "contextTokens": 412034                   // 0 until the session has answered once
+    "contextTokens": 412034,                  // 0 until the session has answered once
+    "errorStreak": 0,                         // schema 4: tool results IN A ROW that were errors; a
+                                              // clean result or a new turn resets it to 0
+    "approvedAt": null                        // schema 4: ms when the human last ALLOWED an approval
+                                              // (outcome "allowed-once"), else null
   }]
 }
 ```
+
+### What changed in schema 4 (round 12)
+
+Three facts the bot's **face** wears; none is ever drawn as words or numbers. A window that only knows
+schema 3 ignores them, and this window treats them as optional, so either half can be one schema behind.
+
+- `activity.kind` gained `"thinking"`: a result came back and no next call has been made — a model turn.
+- `errorStreak` is a moment, not a tally (rule 2): `1` draws the confused face, `2+` the dizzy one, and
+  the next clean result puts the bot back. It is not the "N tools failed" count that was removed.
+- `approvedAt` is when an approval was last **allowed**; the bot is pleased for 3 s after it. A rejected
+  or cancelled approval does not set it.
 
 ### The five rules that make it honest
 
@@ -113,7 +140,7 @@ DSH host process                                  separate Windows process
 | field | written by | read by | note |
 |---|---|---|---|
 | `schema`, `plugin`, `wallMs`, `hostPid` | host | window | `wallMs` drives rule 3 |
-| `retire` | host | window | the tab's tooltip names it when `"timer"` |
+| `retire` | host | window | not drawn; the window's log names it (the board's tooltip for it was removed in round 12 — it popped up over the rows) |
 | `finishedUrl` | host | window | the ✕'s route; `null` = not known, the window falls back to `manual.json` under `DSH_HOME` |
 | `context.budget` | host (row config) | window | `null` = unknown, never guess |
 | `context.hotAt` | host (row config) | window | ignored when `budget` is null |

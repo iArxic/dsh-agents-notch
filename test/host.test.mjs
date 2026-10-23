@@ -187,7 +187,7 @@ test("a subagent's row carries its origin and its parent's id", async () => {
 	// A session earns no row until something happened to it, so both are absent here — what this
 	// asserts is the PAYLOAD's shape, which is where the window reads the edge from.
 	assert.equal(state.plugin, "dsh-agents-notch/host");
-	assert.equal(state.schema, 3);
+	assert.equal(state.schema, 4);
 	// The denominator is NOT published by default any more: it is `null` unless the row config gives
 	// a positive number, because a percentage against a guessed denominator is a lie (contract §1).
 	assert.equal(state.context.budget, null);
@@ -196,7 +196,7 @@ test("a subagent's row carries its origin and its parent's id", async () => {
 	assert.equal(byId.size, 0);
 });
 
-test("a state.json from apply() is schema 3 — the contract's keys and nothing extra", async () => {
+test("a state.json from apply() is schema 4 — the contract's keys and nothing extra", async () => {
 	// Field for field. If a key is added to or removed from the payload without the contract
 	// changing, this test is the one that says so.
 	const events = [
@@ -228,10 +228,10 @@ test("a state.json from apply() is schema 3 — the contract's keys and nothing 
 	// --- the root -------------------------------------------------------------------------------
 	assert.deepEqual(
 		Object.keys(state).sort(),
-		["context", "finishedUrl", "hostPid", "plugin", "retire", "schema", "sessions", "settings", "summary", "wallMs"],
+		["context", "finishedUrl", "hostPid", "openUrl", "plugin", "retire", "schema", "sessions", "settings", "summary", "wallMs"],
 		"the root carries the contract's keys — `finishedUrl` is the ✕'s route, published or null",
 	);
-	assert.equal(state.schema, 3);
+	assert.equal(state.schema, 4);
 	assert.equal(state.plugin, "dsh-agents-notch/host");
 	assert.equal(typeof state.wallMs, "number");
 	assert.ok(Math.abs(Date.now() - state.wallMs) < 60_000, "wallMs is the host clock at write time");
@@ -240,6 +240,7 @@ test("a state.json from apply() is schema 3 — the contract's keys and nothing 
 	// This stub has no web server, so there is no address to publish — and "not known" is null,
 	// never an invented URL (contract #5).
 	assert.equal(state.finishedUrl, null);
+	assert.equal(state.openUrl, null);
 
 	// --- context ----------------------------------------------------------------------------------
 	assert.deepEqual(Object.keys(state.context).sort(), ["budget", "hotAt"]);
@@ -258,7 +259,7 @@ test("a state.json from apply() is schema 3 — the contract's keys and nothing 
 	const [row] = state.sessions;
 	assert.deepEqual(
 		Object.keys(row).sort(),
-		["activity", "approval", "contextTokens", "cwd", "id", "identity", "origin", "parentSession", "project", "since", "status", "steps", "title"],
+		["activity", "approval", "approvedAt", "contextTokens", "cwd", "errorStreak", "id", "identity", "origin", "parentSession", "project", "since", "status", "steps", "title"],
 	);
 	assert.equal(row.id, "4bd2f6ab-96d3-4808-a2fc-a1186848cfd9");
 	assert.equal(row.title, "Argon 0/4 on laptop — fixed");
@@ -273,6 +274,8 @@ test("a state.json from apply() is schema 3 — the contract's keys and nothing 
 	assert.equal(row.origin, "subagent");
 	assert.equal(row.parentSession, "session-lead");
 	assert.equal(row.contextTokens, 99_518);
+	assert.equal(row.errorStreak, 0);
+	assert.equal(row.approvedAt, null);
 });
 
 test("the context budget is null published — and a positive one is published as given", async () => {
@@ -348,17 +351,22 @@ test("settings are clamped to the contract's ranges, and a bad value falls back 
 	assert.equal(settingsOf({ scale: "" }).scale, 1);
 	assert.equal(settingsOf({ scale: null }).scale, 1);
 
-	// `maxRows` is not decoration: it is the board's cap too, so the published setting and the board
-	// can never disagree. Driven through the pure builder — records and a config, no harness.
-	const many = [];
-	for (let i = 0; i < 12; i += 1) {
-		const record = createRecord(`session-${i}`, 1_000);
-		applyEvent(record, { type: "turn/start" }, 1_000);
-		many.push(record);
-	}
-	assert.equal(buildState({ records: many, config: {}, now: 2_000 }).sessions.length, 6);
-	assert.equal(buildState({ records: many, config: { maxRows: 3 }, now: 2_000 }).sessions.length, 3);
-	assert.equal(buildState({ records: many, config: { maxRows: 99 }, now: 2_000 }).sessions.length, 10, "and it is clamped to 10, not trusted");
+	// `maxRows` is how many rows the window SHOWS before its list scrolls (round 13). It is no longer a
+	// cap on what is published — as one it hid every agent past it — so all of them go out, up to the
+	// payload's sanity bound of 40. Driven through the pure builder — records and a config, no harness.
+	const records = (count) => {
+		const list = [];
+		for (let i = 0; i < count; i += 1) {
+			const record = createRecord(`session-${i}`, 1_000);
+			applyEvent(record, { type: "turn/start" }, 1_000);
+			list.push(record);
+		}
+		return list;
+	};
+	assert.equal(buildState({ records: records(12), config: {}, now: 2_000 }).sessions.length, 12);
+	assert.equal(buildState({ records: records(12), config: { maxRows: 3 }, now: 2_000 }).sessions.length, 12, "maxRows does not cut rows");
+	assert.equal(buildState({ records: records(12), config: { maxRows: 3 }, now: 2_000 }).settings.maxRows, 3, "it is published for the window");
+	assert.equal(buildState({ records: records(55), config: {}, now: 2_000 }).sessions.length, 40, "the payload is bounded");
 });
 
 test("the ✕'s route is published when the host knows its port, and null when it does not", async () => {
@@ -410,6 +418,31 @@ test("a settings write that fails answers 500 instead of throwing out of the har
 	for (const dispose of host.disposers) dispose();
 	assert.equal(after.status, 200, "the route still answers after a failed write");
 	assert.equal(after.body.settings.opacity, 1, "and nothing was stored");
+});
+
+test("the open door hands a session to the in-app half once, and refuses the rest", async () => {
+	// Open on the notch: the window POSTs { sessionId }, the plugin's in-app half GETs and TAKES it —
+	// so it fires once — and switches the app to that session.
+	const host = startHost({ entries: [], port: 51234 });
+	const route = host.routes.find((candidate) => candidate.path === "/agents-notch/open");
+	assert.notEqual(route, undefined, "the open route was never registered");
+	const json = { "content-type": "application/json" };
+
+	assert.deepEqual((await callRoute(route)).body, { ok: true, sessionId: null }, "nothing pending");
+	const asked = await callRoute(route, { method: "POST", body: JSON.stringify({ sessionId: "session-b674d987-1" }), headers: json });
+	assert.equal(asked.status, 200);
+	assert.equal((await callRoute(route)).body.sessionId, "session-b674d987-1");
+	assert.equal((await callRoute(route)).body.sessionId, null, "taken once, then gone");
+	// the in-app half's report of what it did is logged, and does not become a new intent
+	assert.equal((await callRoute(route, { method: "POST", body: JSON.stringify({ sessionId: "session-b674d987-1", result: "opened" }), headers: json })).status, 200);
+	assert.equal((await callRoute(route)).body.sessionId, null, "a result is not an intent");
+
+	// the same gates as the settings door, and a shape check on the id
+	assert.equal((await callRoute(route, { method: "POST", body: "{}", headers: { "content-type": "text/plain" } })).status, 415);
+	assert.equal((await callRoute(route, { method: "POST", body: JSON.stringify({ sessionId: "x" }), headers: { ...json, origin: "https://evil.example" } })).status, 403);
+	assert.equal((await callRoute(route, { method: "POST", body: JSON.stringify({ sessionId: "../../etc" }), headers: json })).status, 400);
+	assert.equal((await callRoute(route, { method: "POST", body: JSON.stringify({}), headers: json })).status, 400);
+	for (const dispose of host.disposers) dispose();
 });
 
 test("the settings door refuses a cross-origin or non-JSON POST", async () => {

@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Interop;
 
@@ -62,14 +63,82 @@ internal static class Native
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr h, int attr, out RECT r, int size);
     [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
     private static extern int DwmGetWindowAttributeInt(IntPtr h, int attr, out int value, int size);
-    [DllImport("user32.dll")] private static extern bool AllowSetForegroundWindow(int processId);
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr h, int cmd);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr h);
 
     /// <summary>
-    /// Let whichever process answers next take the foreground. This window never activates, so
-    /// without it the app we launch may only flash its taskbar button; the grant is ours to give
-    /// because the click that asked for it was ours.
+    /// DeepSeek Harness's visible main window, or zero when there is none (not running, or hidden
+    /// in the tray). Matched by process name and by the app's own title suffix, so another
+    /// Electron app is never picked.
     /// </summary>
-    public static void LendForeground() => AllowSetForegroundWindow(-1 /* ASFW_ANY */);
+    public static IntPtr FindAppWindow(out int seen, out bool hidden)
+    {
+        // EnumWindows, not Process.MainWindowHandle: run as the host's child, the .NET lookup found
+        // nothing while the same lookup from a shell found the window (window.log, 2026-10-23).
+        //
+        // A HIDDEN window counts too: closed to the tray, the app keeps its main window and only hides
+        // it, and the `dsh://open` fallback did not bring it back (iArxic, 2026-10-23: "it cant be
+        // minimized to system tray"). A visible window wins; a hidden one is the tray case. Only an
+        // unowned Chromium top-level window with the app's own title suffix is ever picked.
+        IntPtr visible = IntPtr.Zero, tray = IntPtr.Zero;
+        int count = 0;
+        var text = new StringBuilder(512);
+        EnumWindows((h, _) =>
+        {
+            count++;
+            if (GetWindow(h, 4 /* GW_OWNER */) != IntPtr.Zero) return true;
+            text.Clear();
+            if (GetWindowText(h, text, text.Capacity) <= 0) return true;
+            if (!text.ToString().EndsWith("DeepSeek Harness", StringComparison.Ordinal)) return true;
+            text.Clear();
+            GetClassName(h, text, text.Capacity);
+            if (!text.ToString().StartsWith("Chrome_WidgetWin", StringComparison.Ordinal)) return true;
+            if (IsWindowVisible(h)) { visible = h; return false; }
+            if (tray == IntPtr.Zero) tray = h;
+            return true;
+        }, IntPtr.Zero);
+        seen = count;
+        hidden = visible == IntPtr.Zero && tray != IntPtr.Zero;
+        return visible != IntPtr.Zero ? visible : tray;
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr h, StringBuilder name, int max);
+
+    [DllImport("kernel32.dll")] private static extern bool QueryInformationJobObject(IntPtr job, int infoClass, out uint info, int length, out int returned);
+
+    /// <summary>
+    /// The UI restrictions of the job this process runs in (`JOBOBJECT_BASIC_UI_RESTRICTIONS`), or
+    /// null when it is in none or the question cannot be asked. 0x1 (HANDLES) forbids touching any
+    /// window outside the job — which is what made Open unable to raise the app.
+    /// </summary>
+    public static uint? JobUiLimits() =>
+        QueryInformationJobObject(IntPtr.Zero, 4 /* JobObjectBasicUIRestrictions */, out uint flags, 4, out _) ? flags : null;
+
+    private delegate bool EnumWindowsProc(IntPtr h, IntPtr data);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr data);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr h, uint cmd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr h, StringBuilder text, int max);
+
+    /// <summary>
+    /// Bring the app's window to the front: out of the tray, out of the taskbar, in front.
+    ///
+    /// `SwitchToThisWindow` is what does it — the call Task Manager's "Switch to" makes. Every
+    /// documented route (`SetForegroundWindow`, borrowing the foreground thread's input, the Alt-key
+    /// unlock) was refused by the foreground lock from this no-activate window, even right after the
+    /// click; this one raised the app from a process with no input at all (measured 2026-10-23).
+    /// </summary>
+    public static void Raise(IntPtr h)
+    {
+        if (!IsWindowVisible(h)) ShowWindow(h, 5 /* SW_SHOW */);      // back out of the tray
+        if (IsIconic(h)) ShowWindow(h, 9 /* SW_RESTORE */);
+        SwitchToThisWindow(h, true);
+    }
+
+    /// <summary>Is the window showing, and the one in front?</summary>
+    public static bool IsInFront(IntPtr h) => IsWindowVisible(h) && !IsIconic(h) && GetForegroundWindow() == h;
+
+    [DllImport("user32.dll")] private static extern void SwitchToThisWindow(IntPtr h, bool altTab);
 
     // ── constants ───────────────────────────────────────────────────────────────
     internal const int GWL_EXSTYLE = -20;

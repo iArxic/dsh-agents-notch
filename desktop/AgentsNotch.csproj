@@ -18,8 +18,12 @@
          belt-and-braces for a host that strips the manifest; it fails harmlessly when the manifest
          already won.) -->
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.1.6</Version>
+    <Version>0.1.8</Version>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- WPF's font cache builds an "en" culture the first time it lays out a face with OpenType
+         language tables (Consolas, for the tool names). Invariant mode throws on that unless
+         cultures may be created; with this they are, and they behave as the invariant one. -->
+    <PredefinedCulturesOnly>false</PredefinedCulturesOnly>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 

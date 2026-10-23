@@ -1,0 +1,49 @@
+{
+  "_note": "One session, between tools: activity.kind is \"thinking\", so the bot wears the thinking face. Also the fixture the face contact sheet is rendered from (`--face <name>`). wallMs is far in the future so it is never stale.",
+  "schema": 4,
+  "plugin": "dsh-agents-notch/host",
+  "wallMs": 9999999999999,
+  "hostPid": 4242,
+  "retire": "route",
+  "context": {
+    "budget": 1000000,
+    "hotAt": 0.5
+  },
+  "settings": {
+    "scale": 1.0,
+    "screen": "primary",
+    "anchor": "top-center",
+    "maxRows": 6,
+    "hideFullscreen": true
+  },
+  "summary": {
+    "status": "working",
+    "working": 1,
+    "attention": 0,
+    "done": 0,
+    "error": 0,
+    "total": 1
+  },
+  "sessions": [
+    {
+      "id": "session-db65f92b-4f8a-4c1e-9a2f-3b6c1d0e7a11",
+      "title": "Argon 0/4 on laptop — fixed",
+      "project": "blindKnifeArgon",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "working",
+      "since": 1792584337758,
+      "activity": {
+        "kind": "thinking",
+        "label": "roblox_verify"
+      },
+      "approval": null,
+      "steps": 7,
+      "identity": "teal",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
+    }
+  ]
+}

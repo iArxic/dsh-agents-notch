@@ -25,14 +25,16 @@ decides what is true — that split is the whole architecture, and every "the no
 question is answered by looking at `state.json` first.
 
 ```
-lib/host-0.1.6.js   the entry the plugin row mounts (see the cache trap, §5.1)
+lib/host-0.1.8.js   the entry the plugin row mounts (see the cache trap, §5.1)
 lib/host.js         re-export shim: the stable import path for tests and readers
-lib/state.js        pure reducer: events -> session records -> the published rows (schema 3)
+lib/state.js        pure reducer: events -> session records -> the published rows (schema 4)
 lib/settings-store.js  the three settings layers, one clamp (defaults < row config < pane file)
 lib/fetch-exe.js    downloads the release asset on first use, verifies the sibling .sha256
 lib/exe.js          where the window binary is looked for, and the "no window" fix text
 lib/client.js       Settings -> Agents Notch
-desktop/Program.cs  the window: placement, drawing, animation, tray, --shot/--freeze
+desktop/Program.cs  the window: placement, the tab + island, the A1 board, motion, tray, --shot/--freeze
+desktop/Draw.cs     the bots (OrbView, MiniBotView) and the drawing helpers
+desktop/Faces.cs    the face vocabulary: which face sets which eyes, and the accents
 desktop/Settings.cs parsing and clamping of the settings the window receives
 desktop/fixtures/*.json  state files a still can be rendered from, one per state
 tools/publish.ps1          single-file window build + .sha256
@@ -55,7 +57,11 @@ desktop\bin\Release\net9.0-windows\AgentsNotch.exe --state desktop\fixtures\work
     --shot out.png --freeze 600
 ```
 
-`--freeze <ms>` pins the animation clock (0 = the transition frame, 400 ≈ the squint, 2600+ = settled);
+`--freeze <ms>` pins the animation clock (0 = the transition frame, 400 ≈ the squint, 2600+ = settled)
+and holds the eyes open (a still is a pose, not a moment of a blink); `--face <name>` puts one face on
+every bot (`thinking.json` is the one-bot fixture the face sheet is rendered from); `--island x1|x4|d1`
+holds the tab open as that alert — render it WITHOUT `--open`, because an open board stays folded under
+an island;
 `--open` draws the board instead of just the tab; `--probe-rect` prints the resolved placement as JSON;
 `--log <file>` writes the window's own account of what it drew. **Always read the log** — the window
 says `board drawn — tab "…" title "…" sub "…"` and, on a state change, `pose — front a|done -> b|done`.
@@ -116,7 +122,7 @@ in the 30-second window or a granular token with "bypass 2FA").
 Re-applying a plugin row serves the module the app already imported. Editing `lib/host.js` and
 re-mounting changes **nothing** — measured twice, once as a settings route that answered `404` while the
 code sat in the file. To land code without restarting the app: give the entry a **new file name** and
-point `package.json`'s `main` at it (that is why the entry is `host-0.1.6.js`), keeping `lib/host.js` as
+point `package.json`'s `main` at it (that is why the entry is `host-0.1.8.js`), keeping `lib/host.js` as
 a re-export shim for the imports. A `?v=` query on a row's `name` makes the import fail outright.
 
 ### 5.2 A duplicate JSON key deletes a feature silently
@@ -171,13 +177,19 @@ The remote is the safety net: `git fetch && git reset --hard origin/master`.
 
 ## 6. State of the work, and what is still unverified
 
-Verified on this machine: 60 tests; the host fetching its own window from the release (hash checked);
+Verified on this machine: 65 tests; the host fetching its own window from the release (hash checked);
 `install-window.ps1` from a URL; both plugin install paths (registry and local link); the settings route
 (GET/POST/clamp/reset/unknown-key, the 500 path when the write cannot land, and the 415/403 refusals of a
 non-JSON or cross-origin POST); the window's placement, states and stills of every state, including the
 empty board a missing state file now draws (`--state <nonexistent> --shot`, tab `host offline`, 0 bots)
-and an approval row that shows its reason (`--state desktop/fixtures/no-budget.json --open`, row
-`Argon 0/4 on lapto… · wants to delete 14…`).
+and a waiting session's headline that shows its reason in full (`--state desktop/fixtures/no-budget.json
+--open`, line `pwsh wants to delete 14 files under src/` with `Open ↗`). Since round 12 (A1) a waiting
+session that is NOT on the big bot shows only `waiting` in its row; its reason is one click (pin) away.
+
+Verified live in round 12–13 (iArxic driving the app, `window.log` + `host-report.jsonl` read after each
+click): schema 4 published, a question's own text as `approval.reason`, Open switching the app to the
+session (`open-result: opened`) and raising it from minimized (`SwitchToThisWindow`), the island's Open
+not unfolding the board, the tab resizing when its words change, the scrolling list (`many.json`).
 
 **Not verified, do not claim it:** the tray *Quit overlay* click (host-side unit test only), fullscreen
 hiding (needs a full-screen app), mixed-DPI / multi-monitor (this box is one 1920×1080 at 120 DPI), and

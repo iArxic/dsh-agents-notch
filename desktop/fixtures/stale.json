@@ -1,5 +1,5 @@
 {
-  "schema": 3,
+  "schema": 4,
   "plugin": "dsh-agents-notch/host",
   "wallMs": 1792574360974,
   "hostPid": 4242,
@@ -43,7 +43,9 @@
       "identity": "teal",
       "origin": "",
       "parentSession": "",
-      "contextTokens": 412034
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null
     },
     {
       "id": "session-7e2a1c44-9b3d-4a55-8f10-22c9d4b6e803",
@@ -61,7 +63,9 @@
       "identity": "violet",
       "origin": "subagent",
       "parentSession": "session-5c1f0b22-7a6e-4d3b-9c88-0e41f7a2b5c9",
-      "contextTokens": 88210
+      "contextTokens": 88210,
+      "errorStreak": 0,
+      "approvedAt": null
     },
     {
       "id": "session-3a9d5f10-2c7b-4e88-bb31-6d0f4a9c1e72",
@@ -79,7 +83,9 @@
       "identity": "coral",
       "origin": "",
       "parentSession": "",
-      "contextTokens": 51200
+      "contextTokens": 51200,
+      "errorStreak": 0,
+      "approvedAt": null
     }
   ],
   "_note": "The heartbeat is hours old: this photographs the UNKNOWN state (CONTRACT rule 3). Whatever the board said while the host was alive, it must not keep saying it - a stale \"2 working\" is the one lie a status board cannot afford."

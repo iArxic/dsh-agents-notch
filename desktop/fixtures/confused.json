@@ -1,0 +1,89 @@
+{
+  "_note": "Schema 4's struggling faces: the front session's last tool came back as an error (errorStreak 1 → confused), the next one has failed twice in a row (2 → dizzy). wallMs is far in the future so it is never stale.",
+  "schema": 4,
+  "plugin": "dsh-agents-notch/host",
+  "wallMs": 9999999999999,
+  "hostPid": 4242,
+  "retire": "route",
+  "context": {
+    "budget": 1000000,
+    "hotAt": 0.5
+  },
+  "settings": {
+    "scale": 1.0,
+    "screen": "primary",
+    "anchor": "top-center",
+    "maxRows": 6,
+    "hideFullscreen": true
+  },
+  "summary": {
+    "status": "working",
+    "working": 2,
+    "attention": 0,
+    "done": 1,
+    "error": 0,
+    "total": 3
+  },
+  "sessions": [
+    {
+      "id": "session-db65f92b-4f8a-4c1e-9a2f-3b6c1d0e7a11",
+      "title": "Argon 0/4 on laptop — fixed",
+      "project": "blindKnifeArgon",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "working",
+      "since": 1792584337758,
+      "activity": {
+        "kind": "tool",
+        "label": "roblox_verify"
+      },
+      "approval": null,
+      "steps": 7,
+      "identity": "teal",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 1,
+      "approvedAt": null
+    },
+    {
+      "id": "session-7e2a1c44-9b3d-4a55-8f10-22c9d4b6e803",
+      "title": "Port the window half to AgentsNotch",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\dsh-agents-notch",
+      "status": "working",
+      "since": 1792584747758,
+      "activity": {
+        "kind": "tool",
+        "label": "dotnet build"
+      },
+      "approval": null,
+      "steps": 12,
+      "identity": "violet",
+      "origin": "subagent",
+      "parentSession": "session-5c1f0b22-7a6e-4d3b-9c88-0e41f7a2b5c9",
+      "contextTokens": 88210,
+      "errorStreak": 2,
+      "approvedAt": null
+    },
+    {
+      "id": "session-3a9d5f10-2c7b-4e88-bb31-6d0f4a9c1e72",
+      "title": "Fix the seek bug in the knife trail",
+      "project": "swordsGo",
+      "cwd": "C:\\Projects\\swordsGo",
+      "status": "done",
+      "since": 1792566877758,
+      "activity": {
+        "kind": "tool",
+        "label": "pwsh"
+      },
+      "approval": null,
+      "steps": 4,
+      "identity": "coral",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 51200,
+      "errorStreak": 0,
+      "approvedAt": null
+    }
+  ]
+}

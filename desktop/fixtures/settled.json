@@ -1,5 +1,5 @@
 {
-  "schema": 3,
+  "schema": 4,
   "plugin": "dsh-agents-notch/host",
   "wallMs": 9999999999999,
   "hostPid": 4242,
@@ -40,7 +40,9 @@
       "identity": "pink",
       "origin": "",
       "parentSession": "",
-      "contextTokens": 20480
+      "contextTokens": 20480,
+      "errorStreak": 0,
+      "approvedAt": null
     },
     {
       "id": "session-1f4e9a26-8c73-42bb-9d05-7e6f5a4b3c21",
@@ -58,7 +60,9 @@
       "identity": "teal",
       "origin": "",
       "parentSession": "",
-      "contextTokens": 512000
+      "contextTokens": 512000,
+      "errorStreak": 0,
+      "approvedAt": null
     },
     {
       "id": "session-6b2d0e18-3a95-4f7c-b8e1-0d9c2b7a4f35",
@@ -73,7 +77,9 @@
       "identity": "coral",
       "origin": "",
       "parentSession": "",
-      "contextTokens": 30720
+      "contextTokens": 30720,
+      "errorStreak": 0,
+      "approvedAt": null
     }
   ]
 }

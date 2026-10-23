@@ -211,9 +211,9 @@ internal static class Draw
     internal static readonly Color RowTail = C("#6E6E77");
 
     /// <summary>How wide a string is at a size and weight, in the window's own typeface.</summary>
-    internal static double TextWidth(string text, double size, FontWeight? weight = null)
+    internal static double TextWidth(string text, double size, FontWeight? weight = null, FontFamily? font = null)
     {
-        var typeface = new Typeface(Ui, FontStyles.Normal, weight ?? FontWeights.Normal, FontStretches.Normal);
+        var typeface = new Typeface(font ?? Ui, FontStyles.Normal, weight ?? FontWeights.Normal, FontStretches.Normal);
         var formatted = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
             typeface, size, Brushes.Black, 1.0);
         return formatted.WidthIncludingTrailingWhitespace;
@@ -268,8 +268,17 @@ internal sealed class OrbView : Canvas
     readonly Rectangle _eyeL, _eyeR;
     readonly System.Windows.Shapes.Path _arcL, _arcR;
     readonly RotateTransform _tiltEyeL, _tiltEyeR, _tiltArcL, _tiltArcR;
-    readonly SolidColorBrush _rimBrush, _badgeBrush, _ringBrush, _ringBloomBrush;
+    readonly SolidColorBrush _rimBrush, _ringBrush, _ringBloomBrush;
     readonly DropShadowEffect _rimGlow, _ringGlow;
+    // F1d (round 12): a short arc that orbits the face while the session works. No effect on it:
+    // an effect on an element that rotates every frame is re-rasterised every frame.
+    readonly System.Windows.Shapes.Path _spin;
+    readonly RotateTransform _spinTurn;
+    readonly RadialGradientBrush _faceFill;
+    readonly Canvas _accentHost = new() { IsHitTestVisible = false };
+    Face _faceNow = (Face)(-1);
+    FacePose _pose = FaceArt.PoseOf(Face.Idle);
+    FaceAccent? _accent;
 
     public OrbView(double size, Color state, Color identity)
     {
@@ -313,6 +322,20 @@ internal sealed class OrbView : Canvas
         // the readout asks for this number instead of keeping a second copy of the geometry.
         RingReach = (d1 + ringThick) / 2 + 8 - size / 2;
 
+        double spinCirc = Math.PI * d2, spinW = 2;
+        var spinCentre = new Point(Off + size / 2, Off + size / 2);
+        _spinTurn = new RotateTransform(0, spinCentre.X, spinCentre.Y);
+        _spin = new System.Windows.Shapes.Path
+        {
+            Data = new EllipseGeometry(spinCentre, d2 / 2, d2 / 2),
+            Stroke = Draw.B(Draw.Blue, .7), StrokeThickness = spinW, Opacity = 0,
+            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+            // dash units are stroke widths: 30 % of the circle drawn, the rest a gap
+            StrokeDashArray = new DoubleCollection { spinCirc * .3 / spinW, spinCirc / spinW },
+            RenderTransform = _spinTurn,
+        };
+        Children.Add(_spin);
+
         _rimBrush = Draw.B(identity);
         _rimGlow = new DropShadowEffect { Color = identity, BlurRadius = 20, ShadowDepth = 0, Opacity = .6 };
         Children.Add(new Ellipse
@@ -320,10 +343,11 @@ internal sealed class OrbView : Canvas
             Width = size + 5, Height = size + 5, Stroke = _rimBrush, StrokeThickness = 2.5, Effect = _rimGlow,
         });
 
+        _faceFill = new RadialGradientBrush(Draw.C("#FFFFFF"), Draw.C("#D8E4FF")) { GradientOrigin = new Point(.38, .3) };
         _face = new Ellipse
         {
             Width = size, Height = size,
-            Fill = new RadialGradientBrush(Draw.C("#FFFFFF"), Draw.C("#D8E4FF")) { GradientOrigin = new Point(.38, .3) },
+            Fill = _faceFill,
             Effect = new DropShadowEffect { Color = Draw.C("#7C9BE0"), BlurRadius = size * .4, ShadowDepth = 0, Opacity = .45 },
         };
         this.Add(_face, Off, Off);
@@ -357,16 +381,49 @@ internal sealed class OrbView : Canvas
             face.RenderTransform = tilt;
         }
 
-        double bs = size * .3;
-        var badge = new Canvas { Width = bs, Height = bs };
-        _badgeBrush = Draw.B(state);
-        badge.Children.Add(new Ellipse { Width = bs, Height = bs, Fill = _badgeBrush, Stroke = Draw.B(Draw.PanelBg), StrokeThickness = bs * .14 });
-        badge.Children.Add(new Ellipse { Width = bs * .34, Height = bs * .34, Fill = Draw.B(Colors.White) });
-        this.Add(badge, Off + size * .72, Off + size * .72);
+        // F1 (round 12): no state badge. The ring already says the state, and with the badge a failed
+        // bot wore three colours at once.
+        this.Add(_accentHost, Off, Off);
+        SetFace(Face.Idle);
     }
 
     /// <summary>
-    /// Re-colour the bot in place: the badge and the aura take the STATE, the rim the IDENTITY.
+    /// Put a face on. The accents are rebuilt only when the face CHANGES: `Tick` calls this every
+    /// frame with whatever face the state and the motion want, and almost every call is a no-op.
+    /// </summary>
+    public void SetFace(Face face)
+    {
+        if (face == _faceNow) return;
+        _faceNow = face;
+        _pose = FaceArt.PoseOf(face);
+        _accentHost.Children.Clear();
+        _accent = FaceArt.Build(face, _size, _cy / _size, _thick, compact: false);
+        _accentHost.Children.Add(_accent.Layer);
+    }
+
+    public Face FaceNow => _faceNow;
+
+    /// <summary>The working spinner: `alpha` 0 hides it, `angle` is where it has got to, in degrees.</summary>
+    public void SetSpin(double alpha, double angle)
+    {
+        double a = Math.Clamp(alpha, 0, 1);
+        if (_spin.Opacity != a) _spin.Opacity = a;
+        if (a > 0) _spinTurn.Angle = angle;      // a hidden spinner does not need to turn
+    }
+
+    /// <summary>An offline host: the face greys and the bot steps back, so nothing looks live.</summary>
+    public void SetDim(bool dim)
+    {
+        if (dim == _dim) return;
+        _dim = dim;
+        _faceFill.GradientStops[1].Color = dim ? Draw.C("#B9BCC6") : Draw.C("#D8E4FF");
+        Opacity = dim ? .72 : 1;
+    }
+
+    bool _dim;
+
+    /// <summary>
+    /// Re-colour the bot in place: the ring and the aura take the STATE, the rim the IDENTITY.
     /// The window polls the state file every 300 ms — the orb must not be rebuilt for a colour.
     /// </summary>
     public void SetColours(Color state, Color identity)
@@ -374,7 +431,6 @@ internal sealed class OrbView : Canvas
         _aura.Fill = new RadialGradientBrush(state, Colors.Transparent);
         _rimBrush.Color = identity;
         _rimGlow.Color = identity;
-        _badgeBrush.Color = state;
         _ringBrush.Color = state;
         _ringBloomBrush.Color = state;
         _ringGlow.Color = state;
@@ -403,38 +459,15 @@ internal sealed class OrbView : Canvas
     public void Set(double open, double lookX, double lookY, double rim, double glow = .3,
         bool arc = false, double bend = 0, double spread = 1, double tilt = 0)
     {
-        bool bars = !arc;
-        _eyeL.Visibility = _eyeR.Visibility = bars ? Visibility.Visible : Visibility.Collapsed;
-        _arcL.Visibility = _arcR.Visibility = bars ? Visibility.Collapsed : Visibility.Visible;
-
-        double half = _gap * spread;
-        double shift = lookX * _size * .02;
-        if (bars)
-        {
-            double h = Math.Max(_thick, _maxH * open);
-            double top = Off + _cy - h / 2 + lookY * _size * .03;
-            _tiltEyeL.Angle = -tilt;
-            _tiltEyeR.Angle = tilt;
-            _eyeL.Height = _eyeR.Height = h;
-            _eyeL.RadiusY = _eyeR.RadiusY = Math.Min(_eyeW / 2, h / 2);
-            Canvas.SetTop(_eyeL, top);
-            Canvas.SetTop(_eyeR, top);
-            Canvas.SetLeft(_eyeL, Off + _size / 2 - half - _eyeW / 2 + shift);
-            Canvas.SetLeft(_eyeR, Off + _size / 2 + half - _eyeW / 2 + shift);
-        }
-        else
-        {
-            double aw = Math.Max(_thick, _eyeW - _thick);
-            double pixels = _size * .055 * bend;
-            _arcL.Data = ArcGeometry(aw, pixels);
-            _arcR.Data = ArcGeometry(aw, pixels);
-            _tiltArcL.Angle = -tilt;
-            _tiltArcR.Angle = tilt;
-            double y = Off + _cy + lookY * _size * .03;
-            Canvas.SetTop(_arcL, y); Canvas.SetTop(_arcR, y);
-            Canvas.SetLeft(_arcL, Off + _size / 2 - half - aw / 2 + shift);
-            Canvas.SetLeft(_arcR, Off + _size / 2 + half - aw / 2 + shift);
-        }
+        var p = _pose;
+        double half = _gap * spread * p.Spread;
+        double shift = lookX * _size * .02 + p.DX * _size;
+        double drop = lookY * _size * .03 + p.DY * _size;
+        PlaceEye(_eyeL, _arcL, _tiltEyeL, _tiltArcL, p.Left, -1, open * p.Open, arc, bend, half, shift, drop, -tilt);
+        PlaceEye(_eyeR, _arcR, _tiltEyeR, _tiltArcR, p.Right, 1, open * p.OpenR, arc, bend, half, shift, drop, tilt);
+        // the accents follow the gaze a little less than the eyes do, so a face does not slide as one
+        Canvas.SetLeft(_accentHost, Off + shift * .6);
+        Canvas.SetTop(_accentHost, Off + drop * .6);
 
         _rimBrush.Opacity = .55 + .45 * rim;
         // The glow breathes through its OPACITY, not its blur radius: a `BlurRadius` that changes every
@@ -443,6 +476,43 @@ internal sealed class OrbView : Canvas
         // CPU cost by less than a fifth while a per-frame radius change re-blurs 82 500 px).
         _rimGlow.Opacity = .28 + .52 * rim;
         _aura.Opacity = glow;
+    }
+
+    /// <summary>
+    /// One eye: a bar, a `^` arc, or nothing (the face draws its own). A face's Arc eye keeps its
+    /// arc whatever the motion says, which is how a wink works, and takes the motion's bend when
+    /// the motion has one.
+    /// </summary>
+    void PlaceEye(Rectangle bar, System.Windows.Shapes.Path arcPath, RotateTransform barTilt, RotateTransform arcTilt,
+        EyeKind kind, int side, double open, bool arc, double bend, double half, double shift, double drop, double tilt)
+    {
+        if (kind == EyeKind.None)
+        {
+            bar.Visibility = arcPath.Visibility = Visibility.Collapsed;
+            return;
+        }
+        bool useArc = arc || kind == EyeKind.Arc;
+        if (kind == EyeKind.Arc && !arc) bend = 1;
+        bar.Visibility = useArc ? Visibility.Collapsed : Visibility.Visible;
+        arcPath.Visibility = useArc ? Visibility.Visible : Visibility.Collapsed;
+        double cx = Off + _size / 2 + side * half + shift;
+        if (useArc)
+        {
+            double aw = Math.Max(_thick, _eyeW - _thick);
+            arcPath.Data = ArcGeometry(aw, _size * .055 * bend);
+            arcTilt.Angle = tilt;
+            Canvas.SetTop(arcPath, Off + _cy + drop);
+            Canvas.SetLeft(arcPath, cx - aw / 2);
+        }
+        else
+        {
+            double h = Math.Max(_thick, _maxH * open);
+            barTilt.Angle = tilt;
+            bar.Height = h;
+            bar.RadiusY = Math.Min(_eyeW / 2, h / 2);
+            Canvas.SetTop(bar, Off + _cy - h / 2 + drop);
+            Canvas.SetLeft(bar, cx - _eyeW / 2);
+        }
     }
 
     /// <summary>The ring's presence: 0 hidden, 1 fully drawn · `pulse` moves it while it wants you.</summary>
@@ -481,6 +551,11 @@ internal sealed class MiniBotView : Canvas
     readonly RotateTransform _tiltEyeL, _tiltEyeR;
     readonly PathGeometry _arcGeo;
     readonly SolidColorBrush _ringLineBrush, _ringBloomBrush;
+    readonly System.Windows.Shapes.Path _spin;
+    readonly RotateTransform _spinTurn;
+    readonly Canvas _accentHost = new() { IsHitTestVisible = false };
+    Face _faceNow = (Face)(-1);
+    FacePose _pose = FaceArt.PoseOf(Face.Idle);
 
     public MiniBotView(double size, Color state, Color identity)
     {
@@ -529,6 +604,18 @@ internal sealed class MiniBotView : Canvas
         Children.Add(_ringBloom);
         Children.Add(_ringLine);
 
+        // the working spinner (F1d), on the ring's own circle
+        _spinTurn = new RotateTransform(0, centre.X, centre.Y);
+        _spin = new System.Windows.Shapes.Path
+        {
+            Data = new EllipseGeometry(centre, d2 / 2, d2 / 2),
+            Stroke = Draw.B(Draw.Blue, .7), StrokeThickness = 1.1, Opacity = 0,
+            StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+            StrokeDashArray = new DoubleCollection { _ringCirc * .3 / 1.1, _ringCirc / 1.1 },
+            RenderTransform = _spinTurn,
+        };
+        Children.Add(_spin);
+
         this.Add(new Ellipse
         {
             Width = size, Height = size,
@@ -573,6 +660,7 @@ internal sealed class MiniBotView : Canvas
             face.RenderTransformOrigin = centred;
             face.RenderTransform = tilt;
         }
+        this.Add(_accentHost, Off, Off);
     }
 
     static System.Windows.Shapes.Path ArcPath(Brush ink) => new()
@@ -594,54 +682,68 @@ internal sealed class MiniBotView : Canvas
     /// <summary>
     /// The bot's face and ring for a session's state.
     ///
-    /// `blink` 0..1 is the working blink; a settled bot does not blink, because its face IS the
-    /// state — a finished bot that blinks out of its squint reads as a bot that was never finished.
+    /// `blink` 0..1 is the blink, and only bar eyes take it; a settled bot does not blink, because its
+    /// face IS the state, and a finished bot that blinks out of its squint reads as one that never
+    /// finished. `face` comes from the state (Live.FaceOf); the ring still keys on `status`.
     /// </summary>
-    public void Set(double blink, double glow, string status = "working")
+    public void Set(double blink, double glow, string status, Face face)
     {
-        bool settled = status is "done" or "error" or "attention";
-        bool arc = status == "done";
-        double open = status switch
+        if (face != _faceNow)
         {
-            "done" => 0,          // the `^ ^` squint the big bot settles into
-            "attention" => 1.36,  // wide eyes — the same widened rest the big bot holds
-            "error" => .42,       // half shut, and tilted out with it
-            _ => 1 - blink,
-        };
-        double spread = status == "attention" ? 1.16 : 1;
-        double tilt = status == "error" ? 16 : 0;
+            _faceNow = face;
+            _pose = FaceArt.PoseOf(face);
+            _accentHost.Children.Clear();
+            _accentHost.Children.Add(FaceArt.Build(face, _size, (_baseY + _maxH / 2) / _size, _thick, compact: true).Layer);
+        }
+        bool settled = status is "done" or "error" or "attention";
+        double open = settled ? 1 : 1 - blink;
+        double spread = 1;
+        // pleading holds the wide, set-apart eyes the big bot widens into
+        if (face == Face.Pleading) { open = 1.36; spread = 1.16; }
+        PlaceEye(_eyeL, _arcL, _tiltEyeL, _pose.Left, -1, open * _pose.Open, spread * _pose.Spread);
+        PlaceEye(_eyeR, _arcR, _tiltEyeR, _pose.Right, 1, open * _pose.OpenR, spread * _pose.Spread);
+
+        if (_sweep < 0) SetSweep(settled ? 1 : 0);   // first call, or a state the window has not animated
+        _aura.Opacity = glow;
+    }
+
+    void PlaceEye(Rectangle bar, System.Windows.Shapes.Path arcPath, RotateTransform tilt, EyeKind kind, int side,
+        double open, double spread)
+    {
+        if (kind == EyeKind.None)
+        {
+            bar.Visibility = arcPath.Visibility = Visibility.Collapsed;
+            return;
+        }
+        bool arc = kind == EyeKind.Arc;
+        bar.Visibility = arc ? Visibility.Collapsed : Visibility.Visible;
+        arcPath.Visibility = arc ? Visibility.Visible : Visibility.Collapsed;
         double cy = _baseY + _maxH / 2;
-        double half = _gap * spread;
-
-        _eyeL.Visibility = _eyeR.Visibility = arc ? Visibility.Collapsed : Visibility.Visible;
-        _arcL.Visibility = _arcR.Visibility = arc ? Visibility.Visible : Visibility.Collapsed;
-
+        double cx = Off + _size / 2 + side * _gap * spread + _pose.DX * _size;
+        double dy = _pose.DY * _size;
         if (arc)
         {
-            _arcL.Data = _arcGeo;
-            _arcR.Data = _arcGeo;
             double aw = Math.Max(_thick, _eyeW - _thick);
-            Canvas.SetLeft(_arcL, Off + _size / 2 - half - aw / 2);
-            Canvas.SetLeft(_arcR, Off + _size / 2 + half - aw / 2);
-            Canvas.SetTop(_arcL, Off + cy - _size * .03);
-            Canvas.SetTop(_arcR, Off + cy - _size * .03);
+            Canvas.SetLeft(arcPath, cx - aw / 2);
+            Canvas.SetTop(arcPath, Off + cy - _size * .03 + dy);
         }
         else
         {
             double h = Math.Max(_thick, _maxH * open);
-            double top = Off + cy - h / 2;
-            _eyeL.Height = _eyeR.Height = h;
-            _eyeL.RadiusY = _eyeR.RadiusY = Math.Min(_eyeW / 2, h / 2);
-            _tiltEyeL.Angle = -tilt;
-            _tiltEyeR.Angle = tilt;
-            Canvas.SetTop(_eyeL, top);
-            Canvas.SetTop(_eyeR, top);
-            Canvas.SetLeft(_eyeL, Off + _size / 2 - half - _eyeW / 2);
-            Canvas.SetLeft(_eyeR, Off + _size / 2 + half - _eyeW / 2);
+            bar.Height = h;
+            bar.RadiusY = Math.Min(_eyeW / 2, h / 2);
+            tilt.Angle = 0;
+            Canvas.SetTop(bar, Off + cy - h / 2 + dy);
+            Canvas.SetLeft(bar, cx - _eyeW / 2);
         }
+    }
 
-        if (_sweep < 0) SetSweep(settled ? 1 : 0);   // first call, or a state the window has not animated
-        _aura.Opacity = glow;
+    /// <summary>The working spinner: `alpha` 0 hides it, `angle` is where it has got to, in degrees.</summary>
+    public void SetSpin(double alpha, double angle)
+    {
+        double a = Math.Clamp(alpha, 0, 1);
+        if (_spin.Opacity != a) _spin.Opacity = a;
+        if (a > 0) _spinTurn.Angle = angle;      // a hidden spinner does not need to turn
     }
 
     /// <summary>
@@ -725,15 +827,24 @@ internal sealed class RunLine : StackPanel
         }
     }
 
-    /// <summary>The width the runs need — what sizes the pill.</summary>
+    /// <summary>
+    /// The width the runs need — what sizes the pill.
+    ///
+    /// The panel is invalidated first: a run whose text changed only invalidates ITSELF, and the
+    /// panel, still marked as measured, would hand back its old size. The tab then kept the width of
+    /// the previous words — "1 working" under the chevron, or a gap after a shorter line
+    /// (iArxic, 2026-10-23).
+    /// </summary>
     public double LineWidth()
     {
+        InvalidateMeasure();
         Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         return DesiredSize.Width;
     }
 
     public double LineHeight()
     {
+        InvalidateMeasure();
         Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         return DesiredSize.Height;
     }
