@@ -195,8 +195,10 @@ The 0.1.8 release agrees with itself: package `0.1.8` → tag `v0.1.8` (annotate
 closed round 13) → release asset. `releaseAssetUrl()` derives
 `…/releases/download/v0.1.8/AgentsNotch.exe`, and the asset downloaded back through that public URL
 hashes to the same `2fff61418abf…` as `dist/win-x64/AgentsNotch.exe` and as the installed
-`state/agents-notch/window/0.1.8/AgentsNotch.exe` — so the running notch is the released bytes. The
-npm half of the three was iArxic's to publish, not this repo's.
+`state/agents-notch/window/0.1.8/AgentsNotch.exe` — so the running notch is the released bytes. The npm
+half published on 2026-10-23 and `latest` is 0.1.8; the tarball in the registry carries
+`main: ./lib/host-0.1.8.js`, one `exports` block and `./client`, so the cache trap (§5.1) and the
+duplicate-key trap (§5.2) are both absent from what a stranger installs. All three artefacts now agree.
 
 **Not verified, do not claim it:** the tray *Quit overlay* click (host-side unit test only), fullscreen
 hiding (needs a full-screen app), mixed-DPI / multi-monitor (this box is one 1920×1080 at 120 DPI), and

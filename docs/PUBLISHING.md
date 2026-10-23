@@ -87,12 +87,35 @@ name the host looks for. The README's `-Url` example then works as written.
 ## 4. Publish the package
 
 ```powershell
+npm whoami                      # must print the account that owns the package
 npm publish --access public
 ```
 
-Then re-read the npm page: the four images must render (they resolve through `repository`), and the
-install block must match what `npm i` actually produced. If the images are broken, `repository` is
-wrong — that is the cause, not the Markdown.
+**`npm whoami` first.** A dead token in `~/.npmrc` does not fail loudly: the registry answers the
+publish `PUT` with **404 Not Found** — which reads like a missing package, not a permission problem —
+and because it is not a 401, npm never offers the browser login. `2026-10-23` was spent on exactly
+that: the token 401'd on `/-/whoami` while `PUT` returned 404. `npm login --auth-type=web` is the fix
+(`auth-type` is already `web` on this machine).
+
+**npm 11 defers 2FA to an approval, and a staged version cannot be published over.** `npm publish`
+stages the tarball and prints `Authenticate your account at: https://www.npmjs.com/auth/cli/<id>`;
+the version only reaches the registry once that page is approved, and a second `npm publish` of the
+same version answers
+
+```
+npm error code E409
+npm error 409 Conflict - PUT https://registry.npmjs.org/dsh-agents-notch
+npm error Cannot publish over previously staged version "0.1.8".
+```
+
+That 409 means *finish the approval in the browser*, not *retry* — and `npm stage list` can report
+`No staged versions` while the conflict still happens, so the CLI is no help there. After approving,
+the registry said `+ dsh-agents-notch@0.1.8` and `latest` moved within about a minute; `npm view`
+can still answer from cache, so read the packument with `Cache-Control: no-cache`.
+
+Then re-read the npm page: the four images must render, and the install block must match what `npm i`
+actually produced. The README's pictures are absolute `img.shields.io` URLs, so nothing here depends on
+`repository` — if a picture is broken, check the badge URL, not the Markdown.
 
 ## 5. Verify the two install paths a stranger will take
 
