@@ -110,3 +110,28 @@ test("writing stores the CLAMPED values, merges patches, and reset clears the la
 	assert.equal(after.opacity, 0.9, "with the layer cleared, the row decides again");
 	assert.equal(after.anchor, ANCHORS[0]);
 });
+
+test("the hover and alert settings clamp, and a junk value is never stored as though chosen", () => {
+	assert.equal(clampSettings({ holdMs: 50 }).holdMs, 500, "under half a second a crossing pointer would open it");
+	assert.equal(clampSettings({ holdMs: 99_999 }).holdMs, 4000);
+	assert.equal(clampSettings({ holdMs: "1234.6" }).holdMs, 1235);
+	assert.equal(clampSettings({ ghostOpacity: 0 }).ghostOpacity, 0.05, "never so faint you lose where it is");
+	assert.equal(clampSettings({ ghostOpacity: 1 }).ghostOpacity, 0.6);
+	assert.equal(clampSettings({ hoverMode: "OPEN" }).hoverMode, "open", "case-insensitive, like motion");
+	assert.equal(clampSettings({ hoverMode: "hover" }).hoverMode, "ghost");
+	assert.equal(clampSettings({ alerts: "Needs-You" }).alerts, "needs-you");
+	assert.equal(clampSettings({ alerts: "some" }).alerts, "all");
+	assert.equal(clampSettings({ topEdgeOpens: "false" }).topEdgeOpens, true, "only a real boolean counts");
+
+	// a bad pane value falls back to the ROW's choice, not to the default
+	const row = clampSettings({ hoverMode: "open", alerts: "off", holdMs: 900 });
+	const damaged = mergeSettings(row, { hoverMode: "wobble", alerts: 7, holdMs: "soon" });
+	assert.deepEqual([damaged.hoverMode, damaged.alerts, damaged.holdMs], ["open", "off", 900]);
+
+	const dir = mkdtempSync(join(tmpdir(), "agents-notch-settings-"));
+	const file = settingsFileIn(dir);
+	const written = writeStore(file, { hoverMode: "open", holdMs: 2500, alerts: "bogus", topEdgeOpens: false }, {});
+	assert.deepEqual(written.stored, { hoverMode: "open", holdMs: 2500, topEdgeOpens: false }, "the junk alerts value is dropped, not frozen");
+	assert.equal(written.settings.alerts, "all");
+	assert.ok(SETTINGS_KEYS.includes("ghostOpacity"), "the pane may write every new key");
+});

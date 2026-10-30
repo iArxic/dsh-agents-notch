@@ -18,6 +18,11 @@
 //   showProject     true     the project name in the sub line
 //   showDone        true     whether finished sessions are on the board at all (a HOST filter, so
 //                            the tab's ✓ count and the rows cannot disagree)
+//   hoverMode       ghost    "ghost" (step aside, click-through, until the pointer rests) | "open"
+//   holdMs          1600     500 … 4000 — how long the pointer rests on the tab before it unfolds
+//   topEdgeOpens    true     the pointer pushed against the screen's top edge opens it at once
+//   ghostOpacity    0.18     0.05 … 0.6 — how faint the tab goes while it steps aside
+//   alerts          all      "all" | "needs-you" (questions and failures only) | "off"
 
 using System;
 using System.Collections.Generic;
@@ -36,6 +41,10 @@ internal sealed class Settings
     internal const string ScreenPrimary = "primary", ScreenCursor = "cursor";
     internal const string AnchorCenter = "top-center", AnchorLeft = "top-left", AnchorRight = "top-right";
     internal const string MotionAuto = "auto", MotionOn = "on", MotionOff = "off";
+    internal const string HoverGhost = "ghost", HoverOpen = "open";
+    internal const string AlertsAll = "all", AlertsNeedsYou = "needs-you", AlertsOff = "off";
+    internal const int HoldMin = 500, HoldMax = 4000;
+    internal const double GhostMin = .05, GhostMax = .6;
 
     public double Scale = 1.0;
     public string Screen = ScreenPrimary;
@@ -46,6 +55,11 @@ internal sealed class Settings
     public string Motion = MotionAuto;
     public bool ShowProject = true;
     public bool ShowDone = true;
+    public string HoverMode = HoverGhost;
+    public int HoldMs = 1600;
+    public bool TopEdgeOpens = true;
+    public double GhostOpacity = .18;
+    public string Alerts = AlertsAll;
 
     public bool SameAs(Settings other) =>
         other is not null
@@ -57,13 +71,20 @@ internal sealed class Settings
         && Opacity.Equals(other.Opacity)
         && Motion == other.Motion
         && ShowProject == other.ShowProject
-        && ShowDone == other.ShowDone;
+        && ShowDone == other.ShowDone
+        && HoverMode == other.HoverMode
+        && HoldMs == other.HoldMs
+        && TopEdgeOpens == other.TopEdgeOpens
+        && GhostOpacity.Equals(other.GhostOpacity)
+        && Alerts == other.Alerts;
 
     public override string ToString() =>
         $"scale={Scale.ToString("0.##", CultureInfo.InvariantCulture)} screen={Screen} anchor={Anchor}" +
         $" maxRows={MaxRows} hideFullscreen={HideFullscreen}" +
         $" opacity={Opacity.ToString("0.##", CultureInfo.InvariantCulture)} motion={Motion}" +
-        $" showProject={ShowProject} showDone={ShowDone}";
+        $" showProject={ShowProject} showDone={ShowDone}" +
+        $" hoverMode={HoverMode} holdMs={HoldMs} topEdgeOpens={TopEdgeOpens}" +
+        $" ghostOpacity={GhostOpacity.ToString("0.##", CultureInfo.InvariantCulture)} alerts={Alerts}";
 
     /// <summary>
     /// The settings block of a state file. A missing block, a missing member, a wrong type and an
@@ -90,6 +111,13 @@ internal sealed class Settings
         if (block.TryGetProperty("showDone", out var done)
             && (done.ValueKind == JsonValueKind.True || done.ValueKind == JsonValueKind.False))
             s.ShowDone = done.GetBoolean();
+        if (String(block, "hoverMode") is string hover) s.HoverMode = OneOf(hover, HoverGhost, HoverGhost, HoverOpen);
+        if (Number(block, "holdMs") is double hold && double.IsFinite(hold)) s.HoldMs = (int)Math.Clamp(Math.Round(hold), HoldMin, HoldMax);
+        if (block.TryGetProperty("topEdgeOpens", out var edge)
+            && (edge.ValueKind == JsonValueKind.True || edge.ValueKind == JsonValueKind.False))
+            s.TopEdgeOpens = edge.GetBoolean();
+        if (Number(block, "ghostOpacity") is double ghost && double.IsFinite(ghost)) s.GhostOpacity = Math.Clamp(ghost, GhostMin, GhostMax);
+        if (String(block, "alerts") is string alerts) s.Alerts = OneOf(alerts, AlertsAll, AlertsAll, AlertsNeedsYou, AlertsOff);
         return s;
     }
 
@@ -119,6 +147,13 @@ internal sealed class Settings
         if (text == ScreenPrimary || text == ScreenCursor) return text;
         if (text.Length > 0 && text.All(char.IsAsciiDigit) && int.TryParse(text, out int n) && n >= 1) return n.ToString();
         return ScreenPrimary;
+    }
+
+    /// <summary>One of `options`, case-insensitive; anything else is `fallback`.</summary>
+    internal static string OneOf(string value, string fallback, params string[] options)
+    {
+        var text = (value ?? "").Trim().ToLowerInvariant();
+        return options.Contains(text) ? text : fallback;
     }
 
     internal static string NormaliseAnchor(string value)

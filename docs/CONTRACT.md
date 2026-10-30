@@ -71,7 +71,13 @@ DSH host process                                  separate Windows process
     "opacity": 1.0,               // 0.35 … 1.0, how much of the desktop it sits in front of
     "motion": "auto",             // "auto" (follow Windows' reduce-motion) | "on" | "off"
     "showProject": true,          // the project name in the SUB LINE (the chips at right are the colour legend and stay)
-    "showDone": true              // whether finished sessions appear at all — a HOST filter (rule 6)
+    "showDone": true,             // whether finished sessions appear at all — a HOST filter (rule 6)
+    "hoverMode": "ghost",         // "ghost": a pointer on the folded tab fades it and clicks pass through
+                                  // until it rests there | "open": hover unfolds the board at once
+    "holdMs": 1600,               // 500 … 4000, how long the pointer rests on the tab before it unfolds
+    "topEdgeOpens": true,         // the pointer pushed against the screen's top edge over the tab opens it at once
+    "ghostOpacity": 0.18,         // 0.05 … 0.6, how faint the tab goes while it steps aside
+    "alerts": "all"               // the tab's alert island: "all" | "needs-you" (questions, failures) | "off"
   },
 
   "summary": { "status": "working", "working": 2, "attention": 1, "done": 1, "error": 0, "total": 4 },
@@ -192,7 +198,7 @@ round-trip a file other sessions also edit, and one bad indent takes the machine
 
 ```
 GET  /agents-notch/settings   -> { ok, settings, row, stored, defaults }
-POST /agents-notch/settings   -> any of the nine keys, or { reset: true }
+POST /agents-notch/settings   -> any of the fourteen keys, or { reset: true }
 ```
 
 A POST is the only place in this plugin where a request changes anything, it writes one small file

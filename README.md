@@ -213,6 +213,11 @@ an override of a row that already exists:
 | `motion` | `auto` | `auto` follows Windows' reduce-motion setting; `on` forces the animation, `off` draws each state's settled face and nothing else |
 | `showProject` | `true` | the project name in the headline's sub line |
 | `showDone` | `true` | `false` keeps finished sessions off the board entirely (and out of the count) |
+| `hoverMode` | `ghost` | `ghost`: the tab fades and lets clicks through until the pointer rests on it; `open`: hover unfolds the board at once |
+| `holdMs` | `1600` | 500–4000, how long the pointer rests on the tab before the board unfolds |
+| `topEdgeOpens` | `true` | push the pointer against the top edge over the tab to open it without waiting |
+| `ghostOpacity` | `0.18` | 0.05–0.6, how faint the tab goes while it steps aside |
+| `alerts` | `all` | the pop-up on the tab: `all`, `needs-you` (questions and failures only), or `off` |
 | `finishedFallbackMs` | `900000` | how long a settled row survives when `session-finished` is absent |
 | `stateDir` | `$DSH_HOME/state/agents-notch` | where the state file, the logs and the window live |
 | `exePath` | — | force one window binary |

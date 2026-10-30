@@ -940,6 +940,15 @@ internal sealed class OverlayWindow : Window
     const double ExpandSeconds = 0.16;     // the board's unfold
     const double CollapseDelay = 0.25;     // a beat before it folds away again
 
+    // A pointer that merely passes over the tab is on its way to something underneath it, so the
+    // tab steps aside — faded and click-through — and unfolds only for a pointer that STAYS. How long,
+    // how faint, and whether at all are settings (`holdMs`, `ghostOpacity`, `hoverMode`).
+    double HoldToOpenSeconds => _settings.HoldMs / 1000.0;
+    const double GhostFadeSeconds = 0.14;      // into the ghost
+    const double GhostReturnSeconds = 0.35;    // back to solid, once it lingered
+    const double GhostLingerSeconds = 0.6;     // a quick pass still visibly steps aside
+    const double GhostComeBackFrom = 0.75;     // the last quarter of the wait fades it back in
+
     /// <summary>
     /// CONTRACT #3: more than this much lag between the host's `wallMs` and this machine's clock
     /// means the feed is not current. 4 s is 12 missed writes of the host's 340 ms cycle.
@@ -1081,6 +1090,9 @@ internal sealed class OverlayWindow : Window
     double _p;                    // 0 = folded (tab only), 1 = open (the board)
     bool _want;                   // the intent: is the pointer over the tab?
     double _collapseAt;           // when the fold may start
+    double _overTabSince = -1;    // when the pointer came to rest on the folded tab; -1 = it is not there
+    bool _clickThrough;           // WS_EX_TRANSPARENT is on: the tab is a ghost
+    double _ghost;                // 0 solid .. 1 fully faded
     bool _cardLive;               // is the (invisible) card allowed to take the mouse?
     bool _forceHidden, _hidden, _forceShow, _forceOpen, _fullscreen;
     double _freezeMs = -1;
@@ -1125,8 +1137,16 @@ internal sealed class OverlayWindow : Window
 
         // No background on the root: a transparent WPF window lets clicks through the empty
         // parts, so the board only takes the mouse where it is actually drawn.
-        _root.MouseEnter += (_, _) => { _want = true; _collapseAt = double.MaxValue; };
-        _root.MouseLeave += (_, _) => { _want = false; _collapseAt = _t + CollapseDelay; _holdShut = false; };
+        // Entering does NOT open the board — holding still on the tab does (TrackHover). Coming back
+        // to a board that is still folding away keeps it, as it always did.
+        _root.MouseEnter += (_, _) => { if (_p > 0.02 && _t < _collapseAt && !_holdShut) { _want = true; _collapseAt = double.MaxValue; } };
+        // Only an open board gets the beat before folding. The tab turning click-through is reported
+        // as a leave too, and that beat used to unfold the board at the very start of a hover.
+        _root.MouseLeave += (_, _) =>
+        {
+            if (_want) { _want = false; _collapseAt = _t + CollapseDelay; }
+            _holdShut = false;
+        };
 
         SourceInitialized += (_, _) =>
         {
@@ -1462,10 +1482,8 @@ internal sealed class OverlayWindow : Window
         {
             Data = NotchShape(SheetW, _cardH + SheetY, 16, 24),
             RenderTransform = new TranslateTransform(0, -SheetY),
+            // No drop shadow: on a light wallpaper or a white page it read as a grey smudge (iArxic, round 14).
             Fill = Draw.B(Draw.C("#08080A")),
-            Effect = Draw.Shadow(),
-            // the sheet never changes shape while it lives, so its blurred shadow is rasterised once
-            CacheMode = new BitmapCache(),
         };
         // the wheel scrolls the rows when there are more than fit
         _cardHost.MouseWheel += (_, e) =>
@@ -1508,9 +1526,9 @@ internal sealed class OverlayWindow : Window
         {
             if (e.ClickCount >= 2) { e.Handled = true; OpenApp(IslandUp ? _islandId : _data.Front?.Id); return; }
             // a click on an alert folds it, and the board the pointer is already over opens
-            if (IslandUp) { e.Handled = true; FoldIsland(); }
+            if (IslandUp) { e.Handled = true; FoldIsland(); _want = true; _collapseAt = double.MaxValue; }
         };
-        _tabShape = new System.Windows.Shapes.Path { Fill = Draw.B(Draw.C("#08080A")), Effect = Draw.Shadow(34, 8, .5) };
+        _tabShape = new System.Windows.Shapes.Path { Fill = Draw.B(Draw.C("#08080A")) };
         _tabW = -1; _tabHNow = -1;
         _tabHost.Children.Add(_tabShape);
 
@@ -1825,7 +1843,7 @@ internal sealed class OverlayWindow : Window
             _statusById[row.Id] = row.Status;
             if (was == row.Status || stale || row.Since <= 0 || Live.NowMs() - row.Since > 10_000) continue;
             string kind = row.Status switch { "attention" => "x1", "error" => "x4", "done" => "d1", _ => "" };
-            if (kind.Length == 0) continue;
+            if (kind.Length == 0 || !AlertAllowed(kind)) continue;
             if (pick is null || Rank(kind) > Rank(pickKind) || (Rank(kind) == Rank(pickKind) && row.Since > pick.Since))
             {
                 pick = row; pickKind = kind;
@@ -1838,6 +1856,14 @@ internal sealed class OverlayWindow : Window
     }
 
     static int Rank(string kind) => kind is "x1" or "x4" ? 2 : kind == "d1" ? 1 : 0;
+
+    /// <summary>`settings.alerts`: everything, only what needs the human (a question, a failure), or nothing.</summary>
+    bool AlertAllowed(string kind) => _settings.Alerts switch
+    {
+        Settings.AlertsOff => false,
+        Settings.AlertsNeedsYou => kind is "x1" or "x4",
+        _ => true,
+    };
     static string KindFor(string status) => status switch { "attention" => "x1", "error" => "x4", "done" => "d1", _ => "" };
 
     private void ShowIsland(string kind, SessionRow row, bool hold)
@@ -2453,7 +2479,8 @@ internal sealed class OverlayWindow : Window
         // a board forced open (--open, a film's --open-at) answers the alert itself: fold the island
         if (_forceOpen && IslandUp && _opt.Island is null) FoldIsland();
         bool islandUp = IslandUp;
-        if (islandUp && _want) _islandUntil = Math.Max(_islandUntil, t + 1.0);
+        bool onTab = TrackHover(t, dt, islandUp);
+        if (islandUp && (_want || onTab)) _islandUntil = Math.Max(_islandUntil, t + 1.0);
         bool mayOpen = _forceOpen || ((_want || t < _collapseAt) && !islandUp && !_holdShut);
         if (mayOpen && _fullscreen && !_forceShow) mayOpen = false;
         double target = mayOpen ? 1 : 0;
@@ -2851,6 +2878,96 @@ internal sealed class OverlayWindow : Window
 
     TranslateTransform? _cardSlide;
     ScaleTransform? _cardScale;
+
+    /// <summary>
+    /// The hold-to-open hover, polled every frame: a click-through window gets no mouse events, so
+    /// WPF cannot say when the pointer arrives or leaves.
+    ///
+    /// Folded tab + pointer on it → a ghost that clicks fall through; still there after
+    /// <see cref="HoldToOpenSeconds"/> → solid, and the board unfolds (the island just turns solid,
+    /// so its Open can be pressed). A click while it is a ghost went to the window underneath, and
+    /// restarts the wait — that pointer was busy there. Returns whether the pointer is on the tab.
+    /// </summary>
+    private bool TrackHover(double t, double dt, bool islandUp)
+    {
+        bool tracking = _tabHost is not null && _opt.ShotPath is null && _opt.RecordDir is null && !_forceOpen && IsVisible;
+        bool onTab = false, onCard = false, atTopEdge = false;
+        if (tracking)
+        {
+            try
+            {
+                var c = Native.CursorPos();
+                onTab = Over(_tabHost!, c, 1);
+                // pushed against the screen's top edge over the tab: a deliberate reach, no wait
+                atTopEdge = onTab && _settings.TopEdgeOpens && c.Y <= _tabHost!.PointToScreen(new Point(0, 0)).Y + 1;
+                onCard = _p > 0.02 && _cardHost is not null && Over(_cardHost, c, 0);
+            }
+            catch (InvalidOperationException) { /* no presentation source yet */ }
+
+            // The leave WPF may never report: a board opened under a pointer that has not moved since
+            // the window stopped being click-through never saw that pointer arrive, so it cannot see
+            // it go either.
+            if (_want && !onTab && !onCard) { _want = false; _collapseAt = t + CollapseDelay; _holdShut = false; }
+        }
+
+        // a board that is only folding away is not up: a pointer arriving now is a new hover
+        bool boardUp = _want;
+        bool ghost = false;
+        // `hoverMode: open` is the 0.1.8 notch: any hover is an instant open, so it never steps aside
+        bool instant = atTopEdge || (onTab && _settings.HoverMode == Settings.HoverOpen);
+        if (!onTab || boardUp || _holdShut || _heldIsland)
+        {
+            if (_overTabSince >= 0 && !onTab) Log.Write("hover — left the tab before it opened");
+            _overTabSince = -1;
+        }
+        else
+        {
+            if (_overTabSince < 0) { _overTabSince = t; if (!instant) Log.Write("hover — on the tab: ghost, clicks pass through"); }
+            if (_clickThrough && Native.AnyMouseButtonDown()) _overTabSince = t;
+            if (t - _overTabSince >= HoldToOpenSeconds || instant)
+            {
+                string how = atTopEdge ? "top edge" : instant ? "hover" : "held";
+                Log.Write(islandUp ? $"hover — {how}: the island takes the mouse" : $"hover — {how}: the board unfolds");
+                _overTabSince = -1;
+                // a full wait already faded it back in; resetting the wait must not fade it out again
+                if (!instant) _ghost = 0;
+                if (islandUp) _heldIsland = true;
+                else { _want = true; _collapseAt = double.MaxValue; }
+            }
+            else ghost = true;
+        }
+        if (!onTab && !boardUp) _heldIsland = false;
+
+        if (ghost != _clickThrough)
+        {
+            _clickThrough = ghost;
+            Native.SetClickThrough(this, ghost);
+        }
+
+        if (ghost) _ghostUntil = t + GhostLingerSeconds;
+        else if (boardUp || _heldIsland) _ghostUntil = 0;
+        double target = ghost || t < _ghostUntil ? 1 : 0;
+        if (_motionOff) _ghost = target;
+        else _ghost += (target - _ghost) * Math.Min(1, dt / (target > _ghost ? GhostFadeSeconds : GhostReturnSeconds));
+        if (Math.Abs(_ghost - target) < 0.002) _ghost = target;
+        // the last stretch of the wait fades it back in, so an opening is never a surprise
+        double wait = _overTabSince >= 0 ? Math.Clamp((t - _overTabSince) / HoldToOpenSeconds, 0, 1) : 0;
+        double comeBack = Math.Clamp((wait - GhostComeBackFrom) / (1 - GhostComeBackFrom), 0, 1);
+        double alpha = 1 - (1 - _settings.GhostOpacity) * _ghost * (1 - comeBack * comeBack);
+        if (Math.Abs(_host.Opacity - alpha) > 0.001) _host.Opacity = alpha;
+        return onTab;
+    }
+
+    bool _heldIsland;   // the pointer held still on an island: it stays solid until the pointer leaves
+    double _ghostUntil; // the ghost outlives the pointer by GhostLingerSeconds
+
+    /// <summary>Is the screen point inside the element's box (`slackTop` px above it count too — the screen's edge row)?</summary>
+    static bool Over(FrameworkElement e, Native.POINT c, double slackTop)
+    {
+        var a = e.PointToScreen(new Point(0, 0));
+        var b = e.PointToScreen(new Point(e.ActualWidth, e.ActualHeight));
+        return c.X >= Math.Min(a.X, b.X) && c.X < Math.Max(a.X, b.X) && c.Y >= Math.Min(a.Y, b.Y) - slackTop && c.Y < Math.Max(a.Y, b.Y);
+    }
 
     // ── hiding, and the heartbeat ───────────────────────────────────────────────
 

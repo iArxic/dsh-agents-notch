@@ -30,6 +30,9 @@ process.env.DSH_HOME = mkdtempSync(join(tmpdir(), "agents-notch-home-"));
 delete process.env.AGENTS_NOTCH_EXE;
 
 import { apply, buildState, contextOf, nextSpawn, quitHold, settingsOf } from "../lib/host.js";
+
+/** The hover and alert settings (round 14), at their defaults. */
+const HOVER_DEFAULTS = { hoverMode: "ghost", holdMs: 1600, topEdgeOpens: true, ghostOpacity: 0.18, alerts: "all" };
 import { exeCandidates, findExe, installedExePath, missingExeFix, publishExePath } from "../lib/exe.js";
 import { SETTLED_FALLBACK_MS, applyEvent, createRecord } from "../lib/state.js";
 
@@ -248,8 +251,8 @@ test("a state.json from apply() is schema 4 — the contract's keys and nothing 
 	assert.equal(state.context.hotAt, 0.5);
 
 	// --- settings ---------------------------------------------------------------------------------
-	assert.deepEqual(Object.keys(state.settings).sort(), ["anchor", "hideFullscreen", "maxRows", "motion", "opacity", "scale", "screen", "showDone", "showProject"]);
-	assert.deepEqual(state.settings, { scale: 1, screen: "primary", anchor: "top-center", maxRows: 6, hideFullscreen: true, opacity: 1, motion: "auto", showProject: true, showDone: true });
+	assert.deepEqual(Object.keys(state.settings).sort(), ["alerts", "anchor", "ghostOpacity", "hideFullscreen", "holdMs", "hoverMode", "maxRows", "motion", "opacity", "scale", "screen", "showDone", "showProject", "topEdgeOpens"]);
+	assert.deepEqual(state.settings, { scale: 1, screen: "primary", anchor: "top-center", maxRows: 6, hideFullscreen: true, opacity: 1, motion: "auto", showProject: true, showDone: true, ...HOVER_DEFAULTS });
 
 	// --- summary ----------------------------------------------------------------------------------
 	assert.deepEqual(Object.keys(state.summary).sort(), ["attention", "done", "error", "status", "total", "working"]);
@@ -315,19 +318,19 @@ test("the context budget is null published — and a positive one is published a
 test("settings are clamped to the contract's ranges, and a bad value falls back silently", () => {
 	// The window clamps too, but the host must not rely on that: these are the human's settings and
 	// a typo in a config file has to cost a default, never an exception.
-	assert.deepEqual(settingsOf({}), { scale: 1, screen: "primary", anchor: "top-center", maxRows: 6, hideFullscreen: true, opacity: 1, motion: "auto", showProject: true, showDone: true });
+	assert.deepEqual(settingsOf({}), { scale: 1, screen: "primary", anchor: "top-center", maxRows: 6, hideFullscreen: true, opacity: 1, motion: "auto", showProject: true, showDone: true, ...HOVER_DEFAULTS });
 	assert.deepEqual(
 		settingsOf({ scale: 5, screen: "nope", anchor: "middle", maxRows: 99, hideFullscreen: "yes" }),
-		{ scale: 2, screen: "primary", anchor: "top-center", maxRows: 10, hideFullscreen: true, opacity: 1, motion: "auto", showProject: true, showDone: true },
+		{ scale: 2, screen: "primary", anchor: "top-center", maxRows: 10, hideFullscreen: true, opacity: 1, motion: "auto", showProject: true, showDone: true, ...HOVER_DEFAULTS },
 	);
 	assert.deepEqual(
 		settingsOf({ scale: 0.1, screen: 0, anchor: "top-left", maxRows: 1, hideFullscreen: false }),
-		{ scale: 0.75, screen: "primary", anchor: "top-left", maxRows: 3, hideFullscreen: false, opacity: 1, motion: "auto", showProject: true, showDone: true },
+		{ scale: 0.75, screen: "primary", anchor: "top-left", maxRows: 3, hideFullscreen: false, opacity: 1, motion: "auto", showProject: true, showDone: true, ...HOVER_DEFAULTS },
 	);
 	// In range: passed through, not normalised to the default.
 	assert.deepEqual(
-		settingsOf({ scale: 1.25, screen: "cursor", anchor: "top-right", maxRows: 4, hideFullscreen: false, opacity: 1, motion: "auto", showProject: true, showDone: true }),
-		{ scale: 1.25, screen: "cursor", anchor: "top-right", maxRows: 4, hideFullscreen: false, opacity: 1, motion: "auto", showProject: true, showDone: true },
+		settingsOf({ scale: 1.25, screen: "cursor", anchor: "top-right", maxRows: 4, hideFullscreen: false, opacity: 1, motion: "auto", showProject: true, showDone: true, ...HOVER_DEFAULTS }),
+		{ scale: 1.25, screen: "cursor", anchor: "top-right", maxRows: 4, hideFullscreen: false, opacity: 1, motion: "auto", showProject: true, showDone: true, ...HOVER_DEFAULTS },
 	);
 	// Displays are 1-based, as Windows numbers them; a digit string is a display, "0" is not.
 	assert.equal(settingsOf({ screen: "2" }).screen, "2");

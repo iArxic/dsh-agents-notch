@@ -51,6 +51,7 @@ internal static class Native
     [DllImport("user32.dll")] private static extern IntPtr GetDesktopWindow();
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] private static extern bool GetCursorPos(out POINT p);
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtr(IntPtr h, int idx, IntPtr v);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongW")] private static extern int SetWindowLong(IntPtr h, int idx, int v);
@@ -145,6 +146,7 @@ internal static class Native
     internal const int WS_EX_TOOLWINDOW = 0x00000080;
     internal const int WS_EX_NOACTIVATE = 0x08000000;
     internal const int WS_EX_LAYERED = 0x00080000;
+    internal const int WS_EX_TRANSPARENT = 0x00000020;
 
     internal static readonly IntPtr HWND_TOPMOST = new(-1);
     internal const uint SWP_NOSIZE = 0x0001;
@@ -216,6 +218,23 @@ internal static class Native
     }
 
     internal static POINT CursorPos() { GetCursorPos(out var p); return p; }
+
+    /// <summary>Is the left, right or middle button held right now — wherever the click is going.</summary>
+    internal static bool AnyMouseButtonDown() =>
+        (GetAsyncKeyState(0x01) & 0x8000) != 0 || (GetAsyncKeyState(0x02) & 0x8000) != 0 || (GetAsyncKeyState(0x04) & 0x8000) != 0;
+
+    /// <summary>
+    /// Let clicks fall through the whole window (`WS_EX_TRANSPARENT` on a layered window) or take
+    /// them again. The other style bits are read and kept — see <see cref="GetWindowLong"/>.
+    /// </summary>
+    internal static void SetClickThrough(Window w, bool through)
+    {
+        var h = new WindowInteropHelper(w).Handle;
+        if (h == IntPtr.Zero) return;
+        long ex = GetWindowLong(h, GWL_EXSTYLE);
+        long next = through ? ex | WS_EX_TRANSPARENT : ex & ~(long)WS_EX_TRANSPARENT;
+        if (next != ex) SetWindowLong(h, GWL_EXSTYLE, next);
+    }
 
     internal static RECT WindowRect(IntPtr h) { GetWindowRect(h, out var r); return r; }
 
