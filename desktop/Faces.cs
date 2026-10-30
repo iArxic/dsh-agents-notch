@@ -54,6 +54,9 @@ internal static class FaceArt
         return b;
     }
 
+    /// <summary>Half the distance between the eyes, as a fraction of the face: the tab's bot, the board's.</summary>
+    public const double MiniHalfGap = .215, OrbHalfGap = .20;
+
     public static FacePose PoseOf(Face face) => face switch
     {
         Face.Focused => new(EyeKind.Bar, EyeKind.Bar, .75, .75, DX: .03, DY: -.02),
@@ -78,15 +81,16 @@ internal static class FaceArt
     ///
     /// `eyeY` is where the bot centres its eyes (a fraction of s), `thick` its eye stroke, and
     /// `compact` is the tab's 16 px bot: brows are dropped there (they collide with its taller eyes)
-    /// and the eye-replacing shapes are drawn half again as large, so they still read as eyes.
+    /// and the eye-replacing shapes are drawn half again as large, so they still read as eyes; the
+    /// board's bot draws them nearly as large again, to match its bolder eyes.
     /// </summary>
     public static FaceAccent Build(Face face, double s, double eyeY, double thick, bool compact)
     {
         var a = new FaceAccent();
         var c = a.Layer;
-        double cx = s / 2, y = eyeY * s, half = .215 * s;
+        double cx = s / 2, y = eyeY * s, half = (compact ? MiniHalfGap : OrbHalfGap) * s;
         double L = cx - half, R = cx + half;
-        double k = compact ? 1.5 : 1;
+        double k = compact ? 1.5 : 1.45;
         double sw = Math.Max(thick, s * .05);
 
         void Stroke(string path, double w, Brush? ink = null) => c.Children.Add(new Path

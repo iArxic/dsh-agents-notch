@@ -354,8 +354,9 @@ internal sealed class OrbView : Canvas
 
         // One geometry for both eye shapes: the eye's centre never moves, and a closed bar is a
         // capsule of `_thick`, which is exactly what a zero-bend arc draws.
-        _eyeW = size * .10; _thick = Math.Max(2, size * .033); _maxH = size * .26;
-        _cy = size * .34 + _maxH / 2; _gap = size * .215;
+        // Round 14 (iArxic picked B from five): bolder eyes and accents, set a touch closer.
+        _eyeW = size * .125; _thick = Math.Max(2, size * .048); _maxH = size * .30;
+        _cy = size * .48; _gap = size * FaceArt.OrbHalfGap;
         var ink = Draw.B(Draw.C("#2A2A2E"));
         _eyeL = new Rectangle { Width = _eyeW, Height = _maxH, RadiusX = _eyeW / 2, RadiusY = _eyeW / 2, Fill = ink };
         _eyeR = new Rectangle { Width = _eyeW, Height = _maxH, RadiusX = _eyeW / 2, RadiusY = _eyeW / 2, Fill = ink };
@@ -498,8 +499,9 @@ internal sealed class OrbView : Canvas
         double cx = Off + _size / 2 + side * half + shift;
         if (useArc)
         {
-            double aw = Math.Max(_thick, _eyeW - _thick);
-            arcPath.Data = ArcGeometry(aw, _size * .055 * bend);
+            // wider than the bar: an arc only as wide as the open eye read as a speck at 60 px
+            double aw = _eyeW * 1.35;
+            arcPath.Data = ArcGeometry(aw, _size * .07 * bend);
             arcTilt.Angle = tilt;
             Canvas.SetTop(arcPath, Off + _cy + drop);
             Canvas.SetLeft(arcPath, cx - aw / 2);
@@ -632,7 +634,7 @@ internal sealed class MiniBotView : Canvas
         // the eyes, as one continuous shape: a bar that closes into a line and rises into `^`
         _eyeW = size * .17; _maxH = size * .30; _baseY = size * .30;
         _thick = Math.Max(1, size * .10);
-        _gap = size * .215;
+        _gap = size * FaceArt.MiniHalfGap;
         var ink = Draw.B(Draw.C("#2A2A2E"));
         _eyeL = new Rectangle { Width = _eyeW, Height = _maxH, RadiusX = _eyeW / 2, RadiusY = _eyeW / 2, Fill = ink };
         _eyeR = new Rectangle { Width = _eyeW, Height = _maxH, RadiusX = _eyeW / 2, RadiusY = _eyeW / 2, Fill = ink };
