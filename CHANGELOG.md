@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.1.9 — it gets out of your way
+
+**The tab steps aside.** It hangs exactly where you reach for browser tabs and title bars, and a hover
+used to unfold the board over them. Now a pointer passing over the tab turns it into a faint ghost that
+your click goes straight through. Only a pointer that rests there for 1.6 s unfolds the board, and
+pushing the pointer against the top edge of the screen opens it at once. A click while it is a ghost
+restarts the wait, because that pointer was busy with the window underneath.
+
+**No more grey smudge.** The drop shadows under the board and the tab are gone; on a light wallpaper or
+a white page they read as dirt on the screen.
+
+**Five new settings**, in the pane and the row: `hoverMode` (`ghost`, or `open` for the old
+unfold-on-hover), `holdMs` (500–4000), `topEdgeOpens`, `ghostOpacity` (0.05–0.6), and `alerts` (`all`,
+`needs-you` for questions and failures only, or `off`). The pane's sliders now show their value.
+
+**A plan waiting for you is a question.** A session that finished planning and is waiting for you to
+approve the plan said "working"; it now wears the needs-you ring with "approve the plan: <its title>",
+for both the harness's own plan mode and the Claude provider's.
+
+**Bolder eyes on the big bot.** Wider, taller eyes and larger ^^, stars, dots and spirals, so the board's
+bot no longer squints at 60 px. The tab's small bots are unchanged.
+
 ## 0.1.8 — the bots get faces, and the tab speaks up
 
 **One list instead of two.** The board listed every session twice — task lines on the left, project

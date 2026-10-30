@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/hero.png" alt="Agents Notch: a dark notch hanging from the top of the screen, unfolded into a board — a big bot wearing an amber ring because its session needs you, the reason beside it with an Open button, and the other sessions listed below" width="100%">
+![Agents Notch: a dark notch hanging from the top of the screen, unfolded into a board — a big bot wearing an amber ring because its session needs you, the reason beside it with an Open button, and the other sessions listed below](docs/hero.png)
 
 <br>
 
@@ -16,7 +16,7 @@ that answers one question: which of my sessions needs me right now?**
 
 <br>
 
-<img src="docs/demo.webp" alt="Three bots working while light runs along the tab; one stops on you and the tab grows into an alert with its reason and an Open button; the board unfolds on it; it goes back to work, the board folds, and it finishes — the tab shows a short 'done' notice" width="760">
+![Three bots working while light runs along the tab; one stops on you and the tab grows into an alert with its reason and an Open button; the board unfolds on it; it goes back to work, the board folds, and it finishes — the tab shows a short 'done' notice](docs/demo.webp)
 
 <sub>Recorded from the window itself (<code>--record</code>), frame by frame — not a mock-up.</sub>
 
@@ -38,24 +38,43 @@ context switch every time:
 The notch is a small always-on-top tab that **never takes focus**, **hides under a full-screen app**, and
 shows the one thing the sidebar cannot while you are in another window: **a session stuck on you**. When
 one gets stuck, the tab grows into an alert that says why, with an **Open** button that switches the app
-to that session — from wherever it is, minimized or in the tray. Hover the tab and the board unfolds.
+to that session — from wherever it is, minimized or in the tray. And it **never gets in the way**:
+pass over it and it fades and lets your click through; rest on it and the board unfolds.
 
 ## What it shows
 
-<p align="center">
-  <img src="docs/states.png" width="860" alt="Four cards, one per state of the folded tab: working (a blue arc turns), needs you (amber ring), done (green ring and the ^^ face), failed (red ring and the x x face)">
-</p>
+<div align="center">
+
+![Four cards, one per state of the folded tab: working (a blue arc turns), needs you (amber ring), done (green ring and the ^^ face), failed (red ring and the x x face)](docs/states.png)
+
+</div>
 
 That strip is the whole visual language. **Working** wears a slow blue arc and nothing else, because
 working is the quiet default — and while any session is running a tool, light runs along the tab's lower
 edge. **Needs you** wears amber, **done** green, **failed** red. Every session keeps its own colour on the
 bot's rim, so three sessions read as three sessions rather than three copies of one.
 
+### It never gets in the way
+
+<div align="center">
+
+![Two cards: passing over the tab, it fades to a ghost and the click lands on the app under it; resting on it, the board unfolds](docs/hover.png)
+
+</div>
+
+The tab sits where you reach for tabs and title bars, so it steps aside. A pointer **passing over** it
+turns it into a faint ghost that clicks go straight through — to the browser tab or the menu under it.
+Only a pointer that **rests** there for 1.6 s unfolds the board, and pushing it against the top edge of
+the screen opens it at once. All three are settings (`hoverMode`, `holdMs`, `topEdgeOpens`); `open`
+brings back unfold-on-hover.
+
 ### The tab speaks up
 
-<p align="center">
-  <img src="docs/island.png" width="860" alt="Three alerts the tab grows into: needs you (the reason and an amber Open button), failed (the session and the last tool it ran, with Open), and finished (a short notice with the session's title)">
-</p>
+<div align="center">
+
+![Three alerts the tab grows into: needs you (the reason and an amber Open button), failed (the session and the last tool it ran, with Open), and finished (a short notice with the session's title)](docs/island.png)
+
+</div>
 
 When something **new** happens — a session asks for you, fails, or finishes — the tab grows into an
 alert for a few seconds and then folds back. **Open** takes you straight to that session. Only fresh
@@ -63,11 +82,13 @@ events are announced: a question that has been waiting for an hour is on the boa
 
 ### The board
 
-<p align="center">
-  <img src="docs/board-many.png" width="760" alt="The unfolded board: the big bot and its session's title, project, age and context at the top, its current tool and step, and below it a scrolling list of every other session with a small bot, what it is doing and how long ago">
-</p>
+<div align="center">
 
-Hover the tab and the board unfolds. At the top is the session that **changed most recently**, so a
+![The unfolded board: the big bot and its session's title, project, age and context at the top, its current tool and step, and below it a scrolling list of every other session with a small bot, what it is doing and how long ago](docs/board-many.png)
+
+</div>
+
+Rest the pointer on the tab, or push it against the top of the screen, and the board unfolds. At the top is the session that **changed most recently**, so a
 finish or a question is what you see first: its title, its project and age, how full its context is, and
 one line of what it is doing — the tool it is running and the step, the question it is asking in full,
 or how it ended. Below it, every other session in one list: what it is doing in a word and how long ago.
@@ -79,9 +100,11 @@ the app.
 
 ### Sixteen faces
 
-<p align="center">
-  <img src="docs/faces.png" width="860" alt="A grid of the big bot's faces, each in the state that wears it: focused, thinking, determined, tired, glances, confused, dizzy, love, pleading, peeking, ^^, starry, wink, x x and asleep — each captioned with when it appears">
-</p>
+<div align="center">
+
+![A grid of the big bot's faces, each in the state that wears it: focused, thinking, determined, tired, glances, confused, dizzy, love, pleading, peeking, ^^, starry, wink, x x and asleep — each captioned with when it appears](docs/faces.png)
+
+</div>
 
 The bot's face is the state, read closer. A working bot is **focused** in a tool and **thinking** between
 tools, **determined** on a long busy turn and **tired** after half an hour; it is **confused** when a tool
@@ -95,8 +118,8 @@ that finished an hour ago is noise.
 <td width="33%" valign="top">
 
 **🫥 Never in the way**<br>
-Topmost, but never takes focus. Clicks pass through everywhere it is not drawn. Hides under a
-full-screen app.
+Never takes focus, and steps aside when you pass over it: it fades and your click goes through.
+No shadow on your desktop. Hides under a full-screen app.
 
 </td>
 <td width="33%" valign="top">
@@ -118,8 +141,8 @@ the host stops answering.
 <td valign="top">
 
 **🎛️ A Settings pane of its own**<br>
-Settings → Agents Notch: size, anchor, display, rows, opacity, motion. A change lands on the next
-tick — nothing restarts.
+Settings → Agents Notch: size, anchor, display, rows, opacity, motion, how it reacts to the pointer,
+and which alerts pop up. A change lands on the next tick — nothing restarts.
 
 </td>
 <td valign="top">
@@ -233,9 +256,11 @@ the session feed carries it, so this plugin defaults it to `null` — and with `
 count and no percentage, no bar and no amber. A percentage against an invented denominator is a lie
 that looks like information, which is worse than a number with units.
 
-<p align="center">
-  <img src="docs/board-nobudget.png" width="760" alt="The same board with no budget: the sub line says how many tokens, and there is no bar">
-</p>
+<div align="center">
+
+![The same board with no budget: the sub line says how many tokens, and there is no bar](docs/board-nobudget.png)
+
+</div>
 
 Set it to your route's real window (this build's DeepSeek V4 routes: `1000000`) and the percentage and
 the bar appear.
@@ -255,9 +280,11 @@ failed probes and retires settled rows after 15 minutes instead, and says so in 
 When the host stops answering, the board stops pretending — the tab goes grey, the bot falls asleep,
 and the sub line dates the last heartbeat instead of repeating a summary nobody is updating:
 
-<p align="center">
-  <img src="docs/board-stale.png" width="760" alt="Host offline: the tab is grey, the bot is asleep, and the board says when it last heard from the host">
-</p>
+<div align="center">
+
+![Host offline: the tab is grey, the bot is asleep, and the board says when it last heard from the host](docs/board-stale.png)
+
+</div>
 
 ## Limits, stated plainly
 
@@ -320,10 +347,10 @@ host looks for one.
 
 - **工作中**是缓慢转动的蓝色弧线，正在调用工具时标签底边会有光流过；**需要你**是琥珀色光圈；**完成**是绿色光圈和 `^^` 表情；**失败**是红色光圈和 `x x` 表情。
 - 有会话需要你、失败或完成时，标签会短暂展开成提示，显示原因和 **Open** 按钮——一键切换到该会话，即使应用最小化或在托盘里。
-- 鼠标悬停即展开面板：最新变化的会话在顶部（标题、项目、上下文用量、正在运行的工具或等待的问题），其余会话列在下方，超出时可滚动。单击一行在大机器人上查看，双击或 **Open ↗** 切换到该会话。
+- 从不挡路：鼠标经过时标签变成半透明，点击直接穿透到下面的窗口；停留 1.6 秒（或把鼠标推到屏幕顶边）才展开面板：最新变化的会话在顶部（标题、项目、上下文用量、正在运行的工具或等待的问题），其余会话列在下方，超出时可滚动。单击一行在大机器人上查看，双击或 **Open ↗** 切换到该会话。
 - 机器人有十六种表情：思考、专注、疲惫、困惑、恳求、完成、睡着……
 - 从不抢焦点，全屏应用下自动隐藏；没有真实的上下文预算就不显示百分比，宿主断开时标签变灰并注明最后心跳时间。
-- 设置 → **Agents Notch** 有独立设置页：大小、位置、显示器、行数、不透明度、动效，修改即时生效。
+- 设置 → **Agents Notch** 有独立设置页：大小、位置、显示器、行数、不透明度、动效、悬停方式、提示类型，修改即时生效。
 
 ```powershell
 dsh plugin --profile web add dsh-agents-notch

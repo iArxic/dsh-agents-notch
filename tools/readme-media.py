@@ -200,6 +200,7 @@ def shots():
     for name, rows in sets.items():
         shot(f"tab-{name}", state(rows, far), extra=settled)
     shot("board-attention", state(sets["attention"], far), True, settled)
+    shot("board-working", state(sets["working"], far), True, settled)   # the hover sheet's unfolded board
     # the island: the tab grown into an alert, one per kind
     shot("island-x1", state(sets["attention"], far), extra=("--island", "x1", *settled))
     shot("island-x4", state([session("session-e5-fail", "Fix the e2e suite", "web-app", "error", now - 2 * m, "pink", "playwright test", 80_000, 11), a(), b()], far),
@@ -387,6 +388,65 @@ def states_sheet():
     print("states ->", DOCS / "states.png")
 
 
+def pointer(d, x, y, S):
+    """The Windows arrow, tip at (x, y): white with a dark edge, as it sits over any background."""
+    pts = [(0, 0), (0, 17), (4, 13), (7, 20), (10, 19), (7, 12), (12, 12)]
+    poly = [(x + px * 1.5 * S, y + py * 1.5 * S) for px, py in pts]
+    d.polygon(poly, fill=hexc("#FFFFFF"), outline=hexc("#111114"), width=max(1, S))
+
+
+def hover_sheet():
+    """Why it never gets in the way: a pointer passing over the tab meets a ghost it clicks through;
+    a pointer that rests unfolds the board. Both notches are the window's own renders — the ghost is
+    the tab at `ghostOpacity` (0.18), which is all the window does to it."""
+    S = 2
+    cw, chh, gap = 600 * S, 330 * S, 20 * S
+    W, H = cw * 2 + gap, chh
+    canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    cards = [
+        ("Passing over", WORKING, "It fades to a ghost, and your click lands on what is under it."),
+        ("Resting on it", ACCENT, "Rest 1.6 s — or push to the top edge — and the board unfolds."),
+    ]
+    for i, (label, col, line) in enumerate(cards):
+        card = wallpaper(cw, chh, seed=31 + i)
+        d = ImageDraw.Draw(card)
+        if i == 0:
+            # what the notch covers: the top of an ordinary light app window
+            app, a = layer((cw, chh))
+            a.rounded_rectangle((34 * S, -20 * S, cw - 34 * S, 196 * S), radius=14 * S, fill=hexc("#F2F3F7"))
+            for k, (x0, w) in enumerate([(56, 120), (190, 96), (300, 140), (454, 88)]):
+                a.rounded_rectangle((x0 * S, 14 * S, (x0 + w) * S, 30 * S), radius=8 * S, fill=hexc("#D9DCE5" if k else "#BFC7FF"))
+            for k, w in enumerate([420, 360, 470, 300]):
+                a.rounded_rectangle((60 * S, (62 + k * 30) * S, (60 + w) * S, (74 + k * 30) * S), radius=6 * S, fill=hexc("#DDE0E8"))
+            card = Image.alpha_composite(card, app)
+            tab = notch_crop(Image.open(OUT / "shots" / "tab-working.png"))
+            tab = scaled(tab, min(cw - 80 * S, int(tab.width * S / 4 * 1.9)))
+            tab.putalpha(tab.getchannel("A").point(lambda v: v * 18 // 100))
+            tx = (cw - tab.width) // 2
+            card.alpha_composite(tab, (tx, 0))
+            d = ImageDraw.Draw(card)
+            pointer(d, tx + tab.width * 0.58, tab.height * 0.42, S)
+        else:
+            board = notch_crop(Image.open(OUT / "shots" / "board-working.png"))
+            fit = min((cw - 60 * S) / board.width, 212 * S / board.height)
+            board = board.resize((round(board.width * fit), round(board.height * fit)), Image.LANCZOS)
+            bx = (cw - board.width) // 2
+            card.alpha_composite(board, (bx, 0))
+            d = ImageDraw.Draw(card)
+            pointer(d, bx + board.width * 0.56, 14 * S, S)
+        d.ellipse((40 * S, 250 * S, 54 * S, 264 * S), fill=hexc(col))
+        d.text((66 * S, 257 * S), label, font=variable(27 * S, 650), fill=hexc(INK), anchor="lm")
+        d.text((40 * S, 298 * S), line, font=variable(16 * S, 400), fill=hexc("#B4B4C6"), anchor="lm")
+        edge, e = layer((cw, chh))
+        e.rounded_rectangle((0, 0, cw - 1, chh - 1), radius=24 * S, outline=hexc("#FFFFFF", 34), width=S)
+        card = Image.alpha_composite(card, edge)
+        mask = Image.new("L", (cw, chh), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, cw - 1, chh - 1), radius=24 * S, fill=255)
+        canvas.paste(card, (i * (cw + gap), 0), mask)
+    canvas.resize((W // S, H // S), Image.LANCZOS).save(DOCS / "hover.png", optimize=True)
+    print("hover ->", DOCS / "hover.png")
+
+
 def island_sheet():
     """The three alerts the tab grows into, stacked on one slice of desktop, each with its name."""
     rows = [("island-x1", "Needs you", ATTENTION, "the reason, and Open — which switches the app to that session"),
@@ -528,7 +588,7 @@ def main():
     elif cmd == "shots":
         shots()
     elif cmd == "art":
-        hero(); states_sheet(); island_sheet(); faces()
+        hero(); states_sheet(); hover_sheet(); island_sheet(); faces()
         framed("board-many", "board-many.png"); framed("board-nobudget", "board-nobudget.png")
         framed("board-stale", "board-stale.png")
         demo_webp(); demo_gif()
