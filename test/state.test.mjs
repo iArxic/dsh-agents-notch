@@ -443,6 +443,25 @@ test("a different call's result does not answer the question, and the next tool 
 	assert.equal(rec.status, "working", "the model moving on means the human answered");
 });
 
+test("a plan waiting for approval is a question, on both the native and the Claude route", () => {
+	// Native: `exit_plan_mode` is an ordinary tool/call, and its result arrives once the human decides.
+	const plan = JSON.stringify({ plan: "\n# Remove the **Unique** rarity tier\n\n## What you asked for\n" });
+	const native = fold([{ type: "turn/start" }, { type: "tool/call", data: { name: "exit_plan_mode", callId: "p1", arguments: plan } }]);
+	assert.equal(native.status, STATUS.ATTENTION);
+	assert.deepEqual(native.approval, { toolName: "question", reason: "approve the plan: Remove the Unique rarity tier" });
+	applyEvent(native, { type: "tool/result", data: { message: { toolCallId: "p1", content: [{ type: "text", text: "Plan approved — plan mode exited" }] } } });
+	assert.equal(native.status, STATUS.WORKING);
+	assert.equal(native.approval, null);
+
+	// Claude provider: an approval named ExitPlanMode, whose own reason points at a panel the notch cannot open.
+	const claude = fold([{ type: "turn/start" }, { type: "approval/asked", data: { id: "a1", toolName: "ExitPlanMode", reason: "Claude proposed a plan. Read it in the Plan panel, then approve or reject here." } }]);
+	assert.equal(claude.status, STATUS.ATTENTION);
+	assert.deepEqual(claude.approval, { toolName: "question", reason: "approve the plan" });
+	applyEvent(claude, { type: "approval/decided", data: { id: "a1", outcome: "allowed-once" } });
+	assert.equal(claude.status, STATUS.WORKING);
+	assert.equal(claude.approval, null);
+});
+
 test("a replayed event is stamped with WHEN it happened, not with the replay", () => {
 	// The host replays a session's whole log when it mounts (`sweep()`), because a session that was
 	// already running has no live events in this process. Passing no time made every replayed event
