@@ -2,6 +2,18 @@
 
 ## 0.2.0 — the notch stops asking twice, and stops counting teammates as agents
 
+**Performance, measured on the machine that crashed** (before → after, same machine, same day):
+
+| | 0.1.9 | 0.2.0 |
+|---|---|---|
+| Harness host CPU | 179–215 % of one core, sustained | **~35 %** |
+| Harness host working set | 3–4.4 GB, rising until it was killed | **~640 MB, flat** |
+| `finished-failed` events | ~8 per second | **none in 15 minutes** |
+| System RAM free | 3.6 GB (87.8 % used) | **8.4 GB** |
+
+With the plugin disabled entirely the host sat at ~15 %, which is the floor this release gets close to.
+Below is why those two columns differ so much.
+
 **It could crash the app it lives in.** Not by leaking: by stacking. The host asks a sibling plugin
 whether settled sessions are closed out, once a second, and that question is expensive on the other
 side — it reads session logs. At 0.1.9 nothing stopped a second question from being asked while the
@@ -48,11 +60,10 @@ the machine, and it was being fetched on every 340 ms tick. It is now reused for
 board waits for it: a session that starts or finishes still shows up immediately, through the live
 event feed.
 
-Measured on one machine, before and after: host CPU 179–215 % → ~35 %, host memory 3–4.4 GB rising to
-a crash → ~640 MB flat, `finished-failed` lines ~8 per second → none in 15 minutes.
-
-Host-side only — the window binary is unchanged. `docs/RELEASE-0.2.0.md` has the full record, the
-release checklist, and one trap about the release asset.
+Neither half is untouched this time: the state file gains `subagents` (schema 5) and the window draws
+both the teammate count and the new bot paint, so a 0.2.0 install needs the **0.2.0 window binary** — a
+0.1.9 window draws no count and keeps the old white-faced bots. `docs/RELEASE-0.2.0.md` has the full
+record, the release checklist, and the one trap about the release asset.
 
 ## 0.1.9 — it gets out of your way
 

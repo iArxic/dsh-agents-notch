@@ -104,7 +104,18 @@ if (-not $SkipRelease) {
 			if ($existing) {
 				Note "release already exists (id $($existing.id), $($existing.assets.Count) asset(s))"
 			} else {
-				$body = @{ tag_name = $tag; name = "Agents Notch $version"; body = (Get-Content (Join-Path $root 'CHANGELOG.md') -Raw); draft = $false; prerelease = $false } | ConvertTo-Json
+				# The body is THIS version's changelog section, not the whole file: the release page for
+				# 0.2.0 should not open with 0.1.9's fixes. The section runs from `## <version>` to the next
+				# `## ` heading (or the end), and a missing section is an error rather than an empty page.
+				$lines = Get-Content (Join-Path $root 'CHANGELOG.md')
+				$start = -1
+				for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -match "^##\s+$([regex]::Escape($version))\b") { $start = $i; break } }
+				if ($start -lt 0) { throw "CHANGELOG.md has no '## $version' section to use as the release body" }
+				$end = $lines.Count
+				for ($i = $start + 1; $i -lt $lines.Count; $i++) { if ($lines[$i] -match '^##\s') { $end = $i; break } }
+				$notes = ($lines[$start..($end - 1)] -join "`n").TrimEnd()
+				Note "release body: $($end - $start) line(s) from CHANGELOG.md, '## $version'"
+				$body = @{ tag_name = $tag; name = "Agents Notch $version"; body = $notes; draft = $false; prerelease = $false } | ConvertTo-Json
 				$existing = Invoke-RestMethod -Uri "$api/releases" -Method Post -Headers $headers -Body $body -ContentType 'application/json' -TimeoutSec 30
 				Note "created release $($existing.html_url)"
 			}
