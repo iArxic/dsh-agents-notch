@@ -188,7 +188,7 @@ The remote is the safety net: `git fetch && git reset --hard origin/master`.
 
 ## 6. State of the work, and what is still unverified
 
-**0.2.0 is code complete and NOT published** (2026-11-09). It makes two changes. The first is a host fix: 0.1.9 could crash the
+**0.2.0 is tagged `v0.2.0` and its asset is built, NOT published** (2026-11-09: tag local, `dist/win-x64/AgentsNotch.exe` 65.1 MB + .sha256; no GitHub release, no npm). It makes three changes. The first is a host fix: 0.1.9 could crash the
 harness it runs inside, by starting a second close-out probe while the first was still in flight. Four
 guards now prevent that (one probe at a time, exponential backoff, one tick/sweep at a time, report lines
 throttled to one a minute), plus a 5 s reuse of the `listSessions()` answer. Measured on this machine:

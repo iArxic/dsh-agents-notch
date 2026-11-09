@@ -1,8 +1,9 @@
 # Release brief — 0.2.0
 
-**Status: code complete, tests green, NOT published.** Nothing is on npm, no tag exists, no release
-asset exists. This file is for whoever cuts the release; delete it once 0.2.0 ships and fold anything
-still useful into `INTERNALS.md`.
+**Status: tagged `v0.2.0`, release asset built, NOT published.** The tag is local and the asset sits in
+`dist/win-x64/` (65.1 MB, `.sha256` verified, `ProductVersion` names the tagged commit). Nothing is on
+npm and no GitHub release exists yet. This file is for whoever finishes the release; delete it once 0.2.0
+ships and fold anything still useful into `INTERNALS.md`.
 
 0.2.0 carries **three** changes: the host stops stacking close-out probes (§1–§4), and the board stops
 drawing delegated sessions as agents of their own (§2a). The second one changes the **window**, so the
