@@ -179,6 +179,10 @@ internal static class Draw
         // shade what is LARGE, colour what is SMALL: a gradient across a 1.7 px stroke is invisible, so the
         // small bots get one solid, deeper ring and the big one gets the light.
         if (Skin == "coin") return B(Blend(identity, C("#FFFFFF"), .70), opacity);
+        if ((Skin is "adapt2" or "adapt3" or "adapt4") && size < 30)
+            return B(Skin == "adapt4"
+                ? Blend(identity, C("#FFFFFF"), .45)                        // a light ring, the coin's edge
+                : Blend(identity, C("#000000"), Skin == "adapt2" ? .22 : .16), opacity);
         if (Skin is "tint") return B(Blend(identity, C("#000000"), .24), opacity);
         if (Skin == "adaptive" && size < 30) return B(Blend(identity, C("#000000"), .22), opacity);
         if (Skin.Length == 0) return B(identity, opacity);
@@ -201,6 +205,9 @@ internal static class Draw
         "tint" => Blend(identity, C("#FFFFFF"), .55),              // colour MASS: the only thing 16 px shows
         "coin" => Blend(identity, C("#FFFFFF"), .28),              // the bot IS its colour, with a light ring
         "adaptive" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .56),
+        "adapt2" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .40),
+        "adapt3" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .30),
+        "adapt4" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .34),
         _ => C("#D8E4FF"),
     };
 
@@ -210,7 +217,7 @@ internal static class Draw
     /// </summary>
     internal static Brush? Sheen(double size = 60)
     {
-        if (Skin is not ("gloss" or "both") && !(Skin == "adaptive" && size >= 30)) return null;
+        if (Skin is not ("gloss" or "both") && !(Skin.StartsWith("adapt") && size >= 30)) return null;
         var g = new LinearGradientBrush { StartPoint = new Point(.25, 0), EndPoint = new Point(.7, 1) };
         g.GradientStops.Add(new GradientStop(Color.FromArgb(0x5E, 0xFF, 0xFF, 0xFF), 0));
         g.GradientStops.Add(new GradientStop(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF), .48));
