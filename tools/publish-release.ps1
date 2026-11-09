@@ -143,6 +143,13 @@ if (-not $SkipNpm) {
 		Note "(dry run) would publish as $who"
 	} else {
 		npm publish --access public
+		# MEASURED 2026-11-09: `npm publish` exited 1 with EOTP (2FA), and the script printed "published as
+		# iarxic" anyway because it only checked the exit code of the LAST command in the branch. A release
+		# that claims to be on npm when it is not is the worst possible lie here — the tag and the asset are
+		# already live, so a fresh install would succeed at npm and find nothing.
+		if ($LASTEXITCODE -ne 0) {
+			throw "npm publish exited $LASTEXITCODE. The tag and the release asset are already live; fix npm auth (EOTP = a one-time password is required) and re-run with -SkipRelease."
+		}
 		Note "published as $who"
 	}
 }
