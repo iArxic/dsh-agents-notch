@@ -16,6 +16,12 @@ back to normal — a slow route recovers at once, a dead one stops being asked. 
 rule now covers the host's own tick and its log sweep, because `setInterval` does not wait for an
 async callback and both of those can outlast their period.
 
+**The Settings pane's controls stopped looking borrowed.** The `<select>` popup came out white with a
+blue selection bar inside a dark pane, and the slider was white because `accent-color` inherited the
+app's ink. A popup is an OS window, so the lever is `color-scheme`: the pane now measures the colour it
+inherits and sets it, with explicit option colours as a fallback, and the slider and checkbox are drawn
+rather than left native.
+
 **Teammates stopped being agents.** While a team was working, the board filled with rows that all read
 "You are the … teammate", and the sessions you actually opened were pushed off it. A delegated session
 that is *running* is now a number instead: `×3` in the title line of the session that delegated it, and
