@@ -179,6 +179,8 @@ internal static class Draw
         // shade what is LARGE, colour what is SMALL: a gradient across a 1.7 px stroke is invisible, so the
         // small bots get one solid, deeper ring and the big one gets the light.
         if (Skin == "coin") return B(Blend(identity, C("#FFFFFF"), .70), opacity);
+        if (Skin is "adapt34") return B(Blend(identity, C("#000000"), .20), opacity);   // .34 density, DARK ring
+        if (Skin is "adapt40l") return B(Blend(identity, C("#FFFFFF"), .45), opacity);  // .40 density, COIN ring
         if ((Skin is "adapt2" or "adapt3" or "adapt4") && size < 30)
             return B(Skin == "adapt4"
                 ? Blend(identity, C("#FFFFFF"), .45)                        // a light ring, the coin's edge
@@ -208,6 +210,8 @@ internal static class Draw
         "adapt2" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .40),
         "adapt3" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .30),
         "adapt4" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .34),
+        "adapt34" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .34),
+        "adapt40l" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .40),
         _ => C("#D8E4FF"),
     };
 
