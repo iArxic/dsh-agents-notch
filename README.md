@@ -345,9 +345,6 @@ host looks for one.
   a shape, and the traps that cost a day each. The most useful file here if you change something.
 - [`CHANGELOG.md`](CHANGELOG.md) — what changed, per version.
 - [`docs/PUBLISHING.md`](docs/PUBLISHING.md) — the checklist for cutting a release.
-- [`docs/RELEASE-0.2.0.md`](docs/RELEASE-0.2.0.md) — the 0.2.0 release brief: the crash 0.1.9 could
-  cause, the four guards that stop it, the measurements, and the release-asset trap. **Delete it once
-  0.2.0 ships.**
 
 ## 中文
 

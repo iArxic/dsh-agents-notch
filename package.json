@@ -21,6 +21,7 @@
     "docs/INTERNALS.md",
     "docs/PUBLISHING.md",
     "docs/*.png",
+    "docs/demo.webp",
     "CHANGELOG.md",
     "README.md",
     "LICENSE"
