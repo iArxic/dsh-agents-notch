@@ -1,0 +1,143 @@
+{
+  "_note": "SCHEMA 5 DESIGN STILL: the host has already folded RUNNING delegated sessions into the session that delegated them, so there is no subagent row here - only subagents on the lead (and 0 where nothing was delegated, which the window draws as nothing at all). Generated 2026-11-09T22:59:52.3865747+01:00.",
+  "schema": 5,
+  "plugin": "dsh-agents-notch/host",
+  "wallMs": 9999999999999,
+  "hostPid": 4242,
+  "retire": "route",
+  "context": {
+    "budget": 1000000,
+    "hotAt": 0.5
+  },
+  "settings": {
+    "scale": 1.0,
+    "screen": "primary",
+    "anchor": "top-center",
+    "maxRows": 6,
+    "hideFullscreen": true,
+    "showProject": true,
+    "showDone": true,
+    "opacity": 1,
+    "motion": "auto",
+    "hoverMode": "ghost",
+    "holdMs": 1600,
+    "topEdgeOpens": true,
+    "ghostOpacity": 0.18,
+    "alerts": "all"
+  },
+  "summary": {
+    "status": "attention",
+    "working": 3,
+    "attention": 1,
+    "done": 1,
+    "error": 0,
+    "total": 5
+  },
+  "sessions": [
+    {
+      "id": "session-a1",
+      "title": "Review the 0.2.0 release brief",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\dsh-agents-notch",
+      "status": "attention",
+      "since": 1794261472328,
+      "activity": {
+        "kind": "tool",
+        "label": "pwsh"
+      },
+      "approval": null,
+      "steps": 12,
+      "identity": "violet",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 410000,
+      "errorStreak": 0,
+      "approvedAt": null,
+      "subagents": 1
+    },
+    {
+      "id": "session-b2",
+      "title": "Cut 0.2.0 and publish the window asset",
+      "project": "dsh-agents-notch",
+      "cwd": "C:\\Projects\\dsh-agents-notch",
+      "status": "working",
+      "since": 1794261352328,
+      "activity": {
+        "kind": "tool",
+        "label": "dotnet build"
+      },
+      "approval": null,
+      "steps": 9,
+      "identity": "teal",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 412034,
+      "errorStreak": 0,
+      "approvedAt": null,
+      "subagents": 3
+    },
+    {
+      "id": "session-c3",
+      "title": "Argon daemon: 0 of 4 supervisors served",
+      "project": "blindKnifeArgon",
+      "cwd": "C:\\Projects\\blindKnifeArgon",
+      "status": "working",
+      "since": 1794261052328,
+      "activity": {
+        "kind": "thinking",
+        "label": ""
+      },
+      "approval": null,
+      "steps": 21,
+      "identity": "coral",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 220800,
+      "errorStreak": 0,
+      "approvedAt": null,
+      "subagents": 7
+    },
+    {
+      "id": "session-d4",
+      "title": "Settings pane: the button spacing is off",
+      "project": "uiAnimationPlugin",
+      "cwd": "C:\\Projects\\uiAnimationPlugin",
+      "status": "working",
+      "since": 1794261537328,
+      "activity": {
+        "kind": "tool",
+        "label": "pwsh"
+      },
+      "approval": null,
+      "steps": 4,
+      "identity": "lime",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 88400,
+      "errorStreak": 0,
+      "approvedAt": null,
+      "subagents": 0
+    },
+    {
+      "id": "session-e5",
+      "title": "Homepage hero copy",
+      "project": "homepage",
+      "cwd": "C:\\Projects\\homepage",
+      "status": "done",
+      "since": 1794261232328,
+      "activity": {
+        "kind": "tool",
+        "label": "web_fetch"
+      },
+      "approval": null,
+      "steps": 6,
+      "identity": "pink",
+      "origin": "",
+      "parentSession": "",
+      "contextTokens": 51200,
+      "errorStreak": 0,
+      "approvedAt": null,
+      "subagents": 0
+    }
+  ]
+}

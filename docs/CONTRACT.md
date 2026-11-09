@@ -1,6 +1,6 @@
 # The contract between the two halves
 
-**Frozen — schema 4.** The host half computes these facts; the window half draws them where the
+**Frozen — schema 5.** The host half computes these facts; the window half draws them where the
 human is looking. Neither half may change a field here without the other changing in the same
 commit, and both are reviewed against this file. Read `docs/INTERNALS.md` for *why* any of it is
 shaped this way; this file is only *what*.
@@ -33,11 +33,11 @@ DSH host process                                  separate Windows process
   truncated at each start. Like the crash log it is a diagnosis, never a signal: nothing reads it.
 - Anything else the two need belongs in this file first.
 
-## `state.json`, schema 4
+## `state.json`, schema 5
 
 ```jsonc
 {
-  "schema": 4,
+  "schema": 5,
   "plugin": "dsh-agents-notch/host",
   "wallMs": 1790000000000,        // host clock at write time; the window's liveness heartbeat
   "hostPid": 4242,
@@ -101,11 +101,37 @@ DSH host process                                  separate Windows process
     "contextTokens": 412034,                  // 0 until the session has answered once
     "errorStreak": 0,                         // schema 4: tool results IN A ROW that were errors; a
                                               // clean result or a new turn resets it to 0
-    "approvedAt": null                        // schema 4: ms when the human last ALLOWED an approval
+    "approvedAt": null,                       // schema 4: ms when the human last ALLOWED an approval
                                               // (outcome "allowed-once"), else null
+    "subagents": 3                            // schema 5: sessions RUNNING under this one right now —
+                                              // 0 when it delegated nothing, and 0 draws nothing
   }]
 }
 ```
+
+### What changed in schema 5 (the fold)
+
+**A delegated session is not an agent.** While a team works, the board was six rows all reading "You
+are the … teammate", and the sessions the human actually opened were pushed off it. So a delegated
+session that is **running** is no longer a row: the HOST folds it into the session that delegated it,
+and publishes it as `subagents` on that row. The window draws that as `×3` in the row's title line, and
+nothing at all for `0`.
+
+`origin` and `parentSession` stay on a row because three cases keep one of their own, and each is a case
+where a count would be a worse answer than the truth:
+
+- **`attention`** — it is blocked on the human. A number cannot be answered, and hiding a question is
+  the one failure this board exists to prevent.
+- **`error`** — it failed. The red badge is the board's own signal, and the tab must not count a failure
+  whose row is nowhere.
+- **a parent that is not on the board** — folding into a row that does not exist would delete it.
+
+Settled work is NOT one of those cases: a `done` child leaves the count and takes no row. The count
+means "running under this one right now", so nothing stale can sit in it.
+
+A working grandchild counts toward the nearest ancestor that **did** get a row, so `subagents` is the
+size of the team, not only its direct children. `summary` is computed from the published rows, so the
+tab's counts and the board cannot disagree (rule 6).
 
 ### What changed in schema 4 (round 12)
 

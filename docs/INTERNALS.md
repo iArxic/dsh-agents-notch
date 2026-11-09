@@ -456,6 +456,71 @@ From iArxic, using it live:
   tab's lower rim (`LowerEdge`) — up into both rounded corners, fading where they turn — as a faint base
   line with a highlight travelling along it.
 
+### Round 14 — the probe storm: how the notch crashed the harness (2026-11-09)
+
+Not from a user report. From a crash: the harness host died with
+`FATAL ERROR: CALL_AND_RETRY_LAST Allocation failed - JavaScript heap out of memory`. The crash log's
+own GC history is the whole diagnosis:
+
+```
+Mark-Compact (reduce) 3867.9 (4076.2) -> 3867.5 (4025.0) MB ... last resort; GC in old space requested
+```
+
+0.4 MB reclaimed out of 3.87 GB. Nothing was garbage. Whatever filled that heap was still referenced,
+which rules out a leak-by-accumulation and points at **work in flight**.
+
+It was. The host asks `plugins/session-finished` for close-out verdicts over HTTP (`refreshClosedOut`).
+That route's answer walks every session log on the machine; on this corpus, 666 logs, 260 MB compressed,
+**1 010 MB decoded**, and the largest single transcript decodes to 42 MB. Two independent holes turned
+that into a storm:
+
+* **`host-0.1.9.js:477` had no in-flight concept at all.** The "do not ask again yet" check compared the
+  clock against `finishedPollMs` (1 s), never against the request it had just issued, and the request
+  itself aborted at 2 s. So the window in which a second probe could start was never closed.
+* **`tick()` had no re-entrancy guard**, and `setInterval` does not await an async callback. A tick that
+  outlived its 340 ms period stacked.
+
+A timer had already been watching: `host-report.jsonl` held **41 749** `finished-failed` lines, all
+`The operation was aborted due to timeout`, the tightest pair **12 ms apart**, ~8 per second at the peak.
+Every one of those had started a corpus scan and left it running. 3.87 GB ÷ ~120 MB per materialised
+42 MB transcript ≈ 32 in flight — the same number, arrived at two different ways.
+
+The fix is not a bigger heap or a cheaper route (both were done, but on the other side of the wire).
+Here it is **refusing to start work that cannot be finished**:
+
+| Guard | Effect |
+|---|---|
+| `probeInFlight` | one close-out probe at a time; the flag wraps every exit path of the request |
+| `probeRetryAt` + `probeBackoffMs` | a failed probe waits `finishedPollMs × 2^(n-1)`, ceiling `probeBackoffMaxMs` (30 s); one success zeroes it, so a slow-but-working route recovers immediately |
+| `tickInFlight`, `sweepInFlight` | one tick and one sweep at a time — a sweep replays whole logs and must not stack either |
+| `REPEATED_REPORTS` + `REPORT_WINDOW_MS` | `report()` appends **synchronously**, so the per-poll events (`finished-failed`, `list-failed`, `sweep-failed`, `write-failed`, `titles-failed`) write at most one line a minute each. State *transitions* are deliberately exempt: they are the lines that say something changed and must still appear exactly once. |
+| `listingRefreshMs` (5 s) | `listSessions()` is one call across every log on the machine and was being made on every 340 ms tick. The set of live sessions does not change that fast, and a real status change still arrives instantly through the live `session/event` feed. |
+
+Measured, same machine, same afternoon:
+
+| | 0.1.9 | 0.2.0 |
+|---|---|---|
+| host CPU | 179–215 % | ~35 % |
+| host working set | 3–4.4 GB → OOM | ~640 MB flat |
+| `finished-failed` | ~8/s | 0 in 15 min |
+| system RAM free | 3.6 GB | 8.4 GB |
+
+Two things this round is worth remembering for:
+
+* **A plugin can take down the whole harness, and its own author will not see it as its bug.** The
+  notch's log stayed tiny-looking because the *report* was throttled by nothing and the failures were
+  identical; only counting them made it obvious. Any event written on a per-poll path needs a bucket.
+* **"Do not ask twice" has to name the request, not the clock.** A poll interval is not a concurrency
+  limit. If a call can outlive its interval, it needs an explicit in-flight flag, and a failure needs a
+  wait that grows.
+
+The other half of the story lives outside this repo: the sibling plugin now bounds its own answer
+(never an unbounded corpus listing; at most 2 logs decoded per request inside a 1.2 s budget), which
+took that route from **>90 s to 5 ms**. 0.2.0 does not depend on it — the guards above are what stop the
+storm — but the two together are why the board now says `retire: "route"` instead of falling back.
+
+Release record, checklist and the asset trap: `docs/RELEASE-0.2.0.md`.
+
 ## 3. The architecture — two parts, one job each
 
 ┌──────────────────────────── DSH host process ────────────────────────────┐
@@ -918,3 +983,41 @@ The contract, copied from `roblox-workstation-ui` (the working example on this m
   honest limit of this half: the pane renders in their window, not in any test here.
 - the pane writes through `POST /agents-notch/settings` and trusts the answer, which is the clamped
   value the host stored — that is what keeps the pane from showing a number the window is not using.
+
+### Round 15 — teammates are not agents (2026-11-09)
+
+Asked for directly: *"teammates/subagents should not show as individual agents; each lead agent has its
+little subagents count."* The board drew one row per session, so a working team filled it with rows all
+reading "You are the … teammate" and pushed the sessions the human had actually opened off the bottom.
+
+The data was already there — `origin` and `parentSession` have been on every row since schema 3 — so the
+work was a decision about **where the count lives**, not about plumbing. It was settled by rendering
+rather than by arguing: nine treatments were photographed from a fixture with a lead that has 1, 3, 7 and
+0 children, at 4× device scale, through the window's own `--shot`. The pictures are the record
+(`docs/design/teammates/`), because the losing variants' code is gone.
+
+Three of them died on arithmetic, not taste: a 14 px bot has room for an 11 px disc, and an 8 px digit
+inside that collides with the state ring, the aura, the title's first letter and the next row's edge.
+Silhouettes behind the bot landed *on* its face and read as a smudge; dots arced over the rim were fine at
+three, a meaningless speck at one, and collided with the title at six-plus; a badge disc read as a
+notification sticker borrowed from another app. What survived was the count **in the type** — `×3` after
+the title, in the session's own colour — with the big bot wearing a dark digit cut out of its own rim.
+The `×` is load-bearing: a bare trailing digit reads as part of the title.
+
+The folding is in `snapshot()`, in the HOST, for one reason: `summary` is computed from the published
+rows, so a window-side fold would let the tab count agents the board does not show (contract rule 6).
+Three cases keep a row — `attention` (a number cannot be answered, and hiding a question is the one
+failure the board exists to prevent), `error` (the red badge is the board's own signal), and a parent
+that is not published (folding into a row that does not exist would delete it). A `done` child leaves the
+count and takes no row, so the number always means "running under this one right now".
+
+Two things this cost that are worth not paying again:
+
+* **A prefix on the sub line lasted exactly one frame.** The board rebuilds `_subText` from `d.Sub` on
+  every tick, so text injected once at `Rebuild()` is overwritten within 340 ms — a still taken at a
+  frozen clock is the only reason the mistake was visible. Anything that must persist belongs in the
+  data, not in a widget built once.
+* **A parent chain can be broken or cyclic.** The first cut folded a child if its parent merely had *a*
+  record; a corrupt log that parents two sessions to each other then folded both, and the board showed
+  nothing for two working sessions. `rootOf()` now walks to the top-most session and returns `""` when
+  the chain never reaches one the human opened, which surfaces both instead.

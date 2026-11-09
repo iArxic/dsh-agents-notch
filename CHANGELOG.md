@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.2.0 — the notch stops asking twice, and stops counting teammates as agents
+
+**It could crash the app it lives in.** Not by leaking: by stacking. The host asks a sibling plugin
+whether settled sessions are closed out, once a second, and that question is expensive on the other
+side — it reads session logs. At 0.1.9 nothing stopped a second question from being asked while the
+first was still out. On a machine with a busy log store this ran about eight questions a second, each
+one slower than the last, and the abandoned work filled the harness's heap until it died. The crash was
+`JavaScript heap out of memory` at the 4.3 GB ceiling; the log beside it showed a GC reclaiming
+**0.4 MB out of 3.87 GB**, which is what "all of it was still in use" looks like.
+
+**So the notch asks once at a time.** A close-out check that is in flight now blocks the next one, a
+failed check is followed by a wait that doubles each time up to 30 s, and one success puts it straight
+back to normal — a slow route recovers at once, a dead one stops being asked. The same one-at-a-time
+rule now covers the host's own tick and its log sweep, because `setInterval` does not wait for an
+async callback and both of those can outlast their period.
+
+**Teammates stopped being agents.** While a team was working, the board filled with rows that all read
+"You are the … teammate", and the sessions you actually opened were pushed off it. A delegated session
+that is *running* is now a number instead: `×3` in the title line of the session that delegated it, and
+nothing at all when it delegated nothing — a session with no team does not get a `×0`. A delegated
+session that is blocked on you, or that failed, keeps a row of its own, because a number cannot be
+answered and the tab must not count a failure whose row is nowhere. Finished teammates drop out of the
+count, so it always means "running under this one right now". This is the state file's **schema 5**:
+the host does the folding, so the tab's counts and the rows on the board cannot disagree.
+
+**The report stopped shouting.** `host-report.jsonl` grows one line per event, written synchronously,
+and the per-poll failures were the events that fired most. They are now written at most once a minute
+per event name. Lines that say something *changed* — the route went unavailable, the fallback engaged,
+the route came back — are not throttled, because those are the ones worth reading.
+
+**It asks the cheap question less often.** The list of live sessions is one call across every log on
+the machine, and it was being fetched on every 340 ms tick. It is now reused for 5 s. Nothing on the
+board waits for it: a session that starts or finishes still shows up immediately, through the live
+event feed.
+
+Measured on one machine, before and after: host CPU 179–215 % → ~35 %, host memory 3–4.4 GB rising to
+a crash → ~640 MB flat, `finished-failed` lines ~8 per second → none in 15 minutes.
+
+Host-side only — the window binary is unchanged. `docs/RELEASE-0.2.0.md` has the full record, the
+release checklist, and one trap about the release asset.
+
 ## 0.1.9 — it gets out of your way
 
 **The tab steps aside.** It hangs exactly where you reach for browser tabs and title bars, and a hover

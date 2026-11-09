@@ -164,7 +164,7 @@ internal sealed class Options
 /// out of the content key, because it changes every second and must not rebuild the rows.
 /// </summary>
 internal sealed record RowItem(string Id, string Title, string Status, string Right, bool RightMono, string Age,
-    Color Identity, Face Face, bool Teammate, string Tail);
+    Color Identity, Face Face, bool Teammate, int Subagents = 0);
 
 /// <summary>
 /// The headline's third line: what the front session is doing, in the state's own colour.
@@ -196,7 +196,13 @@ internal sealed record SessionRow(
     /// <summary>Schema 4: tool results in a row that came back as errors (0 on a schema-3 host).</summary>
     int ErrorStreak = 0,
     /// <summary>Schema 4: when the human last allowed an approval, ms; 0 when never or unknown.</summary>
-    long ApprovedAt = 0);
+    long ApprovedAt = 0,
+    /// <summary>
+    /// Schema 5: how many sessions are running under this one right now. The host folds a running
+    /// delegated session into the session that delegated it, so this number is the only trace it
+    /// leaves (0 on a schema-4 host and on a session that delegated nothing).
+    /// </summary>
+    int Subagents = 0);
 
 /// <summary>The board's own summary: the worst state among the rows, and how many are working.</summary>
 internal sealed class SummaryRow
@@ -448,8 +454,8 @@ internal sealed class BoardData
         var sb = new System.Text.StringBuilder();
         foreach (var r in d.Rows)
             sb.Append(r.Id).Append('\u0001').Append(r.Title).Append('\u0001').Append(r.Status).Append('\u0001')
-              .Append(r.Right).Append('\u0001').Append(r.Face).Append(r.Teammate ? '\u0002' : '\u0001').Append(r.Tail)
-              .Append('\u0001').Append(r.Identity).Append('\u0003');
+              .Append(r.Right).Append('\u0001').Append(r.Face).Append(r.Teammate ? '\u0002' : '\u0001')
+              .Append('\u0001').Append(r.Identity).Append('\u0004').Append(r.Subagents).Append('\u0003');
         return sb.ToString();
     }
 
@@ -549,7 +555,7 @@ internal static class Live
             Str(el, "id"), Str(el, "title"), Str(el, "project"), Str(el, "cwd"), Str(el, "status"), Num(el, "since"),
             approvalTool, approvalReason, activityKind, activityLabel, Int(el, "steps"), Str(el, "identity"),
             Str(el, "origin"), Str(el, "parentSession"), Int(el, "contextTokens"),
-            Int(el, "errorStreak"), Num(el, "approvedAt"));
+            Int(el, "errorStreak"), Num(el, "approvedAt"), Int(el, "subagents"));
     }
 
     /// <summary>
@@ -663,25 +669,17 @@ internal static class Live
             d.Head = HeadOf(front);
         }
 
-        // THE ROWS (A1): every session but the one on the bot, most urgent first. One list — the chip
-        // column that repeated these same sessions by project is gone. `settings.maxRows` counts the
-        // front session too, so the board never carries more than the host was asked to send.
+        // THE ROWS (A1): every session the host published but the one on the bot, most urgent first. One
+        // list — the chip column that repeated these same sessions by project is gone. `settings.maxRows`
+        // counts the front session too, so the board never carries more than the host was asked to send.
         //
-        // A delegated session is a TEAMMATE (round 08, S6): its row steps back to the dimmer ink, and
-        // the session that delegated carries how many it has.
-        var teammates = sessions
-            .Where(s => s.Origin == "subagent" && s.Parent.Length > 0)
-            .GroupBy(s => s.Parent)
-            .ToDictionary(g => g.Key, g => g.Count());
-
-        // Every session the host sent gets a row (round 13): `maxRows` is how many are VISIBLE, and the
-        // list scrolls past that — it used to be a hard cap, so the ninth agent existed only as "+N".
+        // A delegated session is normally NOT here at all: the host folds a running one into the session
+        // that delegated it as `subagents` (schema 5). One that is blocked on the human or that failed
+        // keeps its own row, and that is what `Teammate` dims.
         foreach (var s in sessions.Where(s => !ReferenceEquals(s, front))
                                   .OrderBy(s => Urgency(s.Status)).ThenByDescending(s => s.Since))
         {
             bool teammate = s.Origin == "subagent";
-            string tail = !teammate && teammates.TryGetValue(s.Id, out int kids)
-                ? (kids == 1 ? "1 teammate" : $"{kids} teammates") : "";
             var (right, mono) = s.Status switch
             {
                 "attention" => ("waiting", false),
@@ -692,7 +690,7 @@ internal static class Live
                 _ => ("", false),
             };
             d.Rows.Add(new RowItem(s.Id, s.Title.Length > 0 ? s.Title : ProjectOf(s), s.Status, right, mono,
-                Age(s.Since), IdentityOf(s.Identity), FaceOf(s), teammate, tail));
+                Age(s.Since), IdentityOf(s.Identity), FaceOf(s), teammate, s.Subagents));
         }
 
         // CONTRACT #3 — a stale feed shows the UNKNOWN state, never the last summary dressed up as
@@ -1510,6 +1508,12 @@ internal sealed class OverlayWindow : Window
         _orbHost.Add(_orb, 20, 16);
         _orbX = SheetX + 20; _orbY = SheetY + 16; _orbCenter = _orb.CenterOffset;
 
+        // The board shows the sessions the human opened; a session that delegated work shows how many
+        // are running under it. The session on the big bot has no row of its own, so its count has to
+        // live here or the team it is running is invisible.
+        int frontKids = d.Front?.Subagents ?? 0;
+        AddTeammateCount(_orbHost, 20 + 2.5 + 30, 16 + 2.5 + 30, 60, frontKids, d.Identity);
+
         _titleText = Draw.Text(d.Title, 14, Draw.Ink, FontWeights.SemiBold);
         _titleText.Width = TextW;
         _headHost.Add(_titleText, TextX, 17);
@@ -2049,8 +2053,17 @@ internal sealed class OverlayWindow : Window
 
             var title = new TextBlock { FontFamily = Draw.Ui, FontSize = 12, Width = Math.Max(20, titleW), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
             title.Inlines.Add(new System.Windows.Documents.Run(r.Title) { Foreground = Draw.Cached(r.Teammate ? Draw.Ink2 : Draw.Ink) });
-            if (r.Tail.Length > 0)
-                title.Inlines.Add(new System.Windows.Documents.Run(" · " + r.Tail) { FontSize = 10.5, Foreground = Draw.Cached(Draw.RowTail) });
+            // The count in the type, where a reader's eye already is: `×3` and not a bare `3`, because a
+            // trailing digit reads as part of the title ("Wrong direction at line 3" is a landmine). It
+            // costs a little title width, which is the trade this design makes: a count you can read at
+            // 14 px beats a shape you cannot. NOTHING for 0 — a session that delegated nothing is not a
+            // team of none (contract rule 5).
+            if (r.Subagents > 0)
+                title.Inlines.Add(new System.Windows.Documents.Run(" \u00D7" + r.Subagents)
+                {
+                    FontSize = 10,
+                    Foreground = Draw.Cached(r.Identity),
+                });
             row.Add(title, titleX, 6);
 
             if (r.Right.Length > 0)
@@ -2098,6 +2111,24 @@ internal sealed class OverlayWindow : Window
         }
     }
 
+    /// <summary>
+    /// The count of sessions running under the one on the big bot: a digit cut out of the orb's own
+    /// footprint, in the session's colour, with no border and no ring of its own — the orb's state ring
+    /// stays the only ring, and the face stays the thing you read. Rows wear the same count as `×N` in
+    /// their title line instead, because a 14 px bot has no room for a disc that is still legible.
+    ///
+    /// NOTHING IS DRAWN FOR 0 (contract rule 5): a session that delegated nothing is not a team of none.
+    /// </summary>
+    private static void AddTeammateCount(Canvas host, double cx, double cy, double size, int n, Color identity)
+    {
+        if (n <= 0) return;
+        double d = Math.Max(10, size * .40), fs = Math.Max(7, d * .64);
+        double x = cx + size * .18, y = cy + size * .22;
+        host.Add(new System.Windows.Shapes.Ellipse { Width = d, Height = d, Fill = Draw.Cached(Draw.C("#0A0A0C")), Opacity = .94 }, x, y);
+        var t = Draw.Text(n.ToString(), fs, identity, FontWeights.SemiBold);
+        t.Width = d; t.TextAlignment = TextAlignment.Center;
+        host.Add(t, x, y + (d - fs * 1.42) / 2);
+    }
     /// <summary>
     /// Clicking a row pins the orb to that session; clicking it again (or the card's background)
     /// lets go. The board is rebuilt from the last state rather than waiting up to 150 ms for the

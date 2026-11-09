@@ -271,6 +271,12 @@ A session is on the board because **something happened to it**: it is working, i
 approval or a question, it failed, or it finished and you have not closed it out. Merely being open
 never earns a row, however many sessions are attached.
 
+A session that **delegated** work is one row, not six. While a subagent runs, the board shows the session
+that delegated it with `×3` after its title — how many are running under it right now — and the subagent
+gets no row of its own. A teammate that is **waiting on you**, or that failed, does keep a row, because a
+number cannot be answered. Finished teammates drop out of the count, and a session with nothing running
+under it shows no number at all.
+
 Finished and failed rows do not expire on a timer. They leave when the harness's own close-out
 verdict says so — the ✓ that the **`session-finished`** plugin puts in the sidebar, read over that
 plugin's HTTP route, or the ✕ on the row. If that plugin is not installed, this one notices after three
@@ -339,6 +345,9 @@ host looks for one.
   a shape, and the traps that cost a day each. The most useful file here if you change something.
 - [`CHANGELOG.md`](CHANGELOG.md) — what changed, per version.
 - [`docs/PUBLISHING.md`](docs/PUBLISHING.md) — the checklist for cutting a release.
+- [`docs/RELEASE-0.2.0.md`](docs/RELEASE-0.2.0.md) — the 0.2.0 release brief: the crash 0.1.9 could
+  cause, the four guards that stop it, the measurements, and the release-asset trap. **Delete it once
+  0.2.0 ships.**
 
 ## 中文
 

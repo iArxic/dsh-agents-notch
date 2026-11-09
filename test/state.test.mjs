@@ -490,3 +490,91 @@ test("a replayed event is stamped with WHEN it happened, not with the replay", (
 	applyEvent(future, { type: "turn/start", time: Date.now() + 1e10, data: {} }, 5_000);
 	assert.equal(future.since, 5_000, "a clock that jumped is not a timestamp");
 });
+
+// ── schema 5: the fold ────────────────────────────────────────────────────────────────────────────
+//
+// A delegated session is not an agent of its own. While a team works the board was six rows all
+// reading "You are the … teammate" and the sessions the human opened were pushed off it. A RUNNING
+// delegated session is now a number (`subagents`) on the session that delegated it.
+
+/** A record in a given state, without going through the event stream. */
+function session(id, { status = STATUS.WORKING, origin = "", parent = "", now = 1_000 } = {}) {
+	const rec = createRecord(id, now);
+	rec.status = status;
+	rec.origin = origin;
+	rec.parentSession = parent;
+	rec.since = now;
+	return rec;
+}
+
+test("a running delegated session folds into its parent as a count and gets no row", () => {
+	const rows = snapshot([
+		session("lead"),
+		session("kid-1", { origin: "subagent", parent: "lead" }),
+		session("kid-2", { origin: "subagent", parent: "lead" }),
+	]);
+	assert.equal(rows.length, 1);
+	assert.equal(rows[0].id, "lead");
+	assert.equal(rows[0].subagents, 2);
+});
+
+test("a session that delegated nothing carries no count — not a zero to draw", () => {
+	const [row] = snapshot([session("solo")]);
+	assert.equal(row.subagents, 0);
+	assert.ok(Object.hasOwn(row, "subagents"), "the field exists and is 0; the WINDOW decides not to draw it");
+});
+
+test("a delegated session blocked on the human keeps its own row, and is not counted", () => {
+	// A number cannot be answered. Hiding a question is the one failure this board exists to prevent.
+	const rows = snapshot([
+		session("lead"),
+		session("kid", { origin: "subagent", parent: "lead", status: STATUS.ATTENTION }),
+	]);
+	assert.equal(rows.length, 2);
+	const lead = rows.find((row) => row.id === "lead");
+	const kid = rows.find((row) => row.id === "kid");
+	assert.equal(lead.subagents, 0, "a session that is not running under it is not part of the count");
+	assert.equal(kid.origin, "subagent", "the window dims this row because the edge survives");
+	assert.equal(summarise(rows).status, STATUS.ATTENTION, "the tab still says it needs you");
+});
+
+test("a failed delegated session keeps its own row", () => {
+	const rows = snapshot([session("lead"), session("kid", { origin: "subagent", parent: "lead", status: STATUS.ERROR })]);
+	assert.equal(rows.length, 2);
+	assert.equal(rows.find((row) => row.id === "lead").subagents, 0);
+	assert.equal(summarise(rows).error, 1);
+});
+
+test("a finished delegated session neither counts nor appears", () => {
+	const rows = snapshot([session("lead"), session("kid", { origin: "subagent", parent: "lead", status: STATUS.DONE })]);
+	assert.equal(rows.length, 1);
+	assert.equal(rows[0].id, "lead");
+	assert.equal(rows[0].subagents, 0, "finished work drops out of the count");
+});
+
+test("a delegated session whose parent is not on the board keeps its own row", () => {
+	// Folding into a row that does not exist would delete it from the board entirely.
+	const rows = snapshot([session("orphan", { origin: "subagent", parent: "not-published" })]);
+	assert.equal(rows.length, 1);
+	assert.equal(rows[0].id, "orphan");
+});
+
+test("a working grandchild counts toward the nearest ancestor that has a row", () => {
+	const rows = snapshot([
+		session("lead"),
+		session("kid", { origin: "subagent", parent: "lead" }),
+		session("grandkid", { origin: "subagent", parent: "kid" }),
+	]);
+	assert.equal(rows.length, 1);
+	assert.equal(rows[0].subagents, 2, "the team the lead is running, not just its direct children");
+});
+
+test("a corrupt log that parents two sessions to each other still shows both", () => {
+	// Neither chain reaches a session the human opened, so neither may be folded away.
+	const rows = snapshot([
+		session("a", { origin: "subagent", parent: "b" }),
+		session("b", { origin: "subagent", parent: "a" }),
+	]);
+	assert.equal(rows.length, 2);
+	assert.deepEqual(rows.map((row) => row.subagents), [0, 0]);
+});

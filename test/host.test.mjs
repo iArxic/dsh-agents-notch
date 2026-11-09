@@ -190,7 +190,7 @@ test("a subagent's row carries its origin and its parent's id", async () => {
 	// A session earns no row until something happened to it, so both are absent here — what this
 	// asserts is the PAYLOAD's shape, which is where the window reads the edge from.
 	assert.equal(state.plugin, "dsh-agents-notch/host");
-	assert.equal(state.schema, 4);
+	assert.equal(state.schema, 5);
 	// The denominator is NOT published by default any more: it is `null` unless the row config gives
 	// a positive number, because a percentage against a guessed denominator is a lie (contract §1).
 	assert.equal(state.context.budget, null);
@@ -199,7 +199,7 @@ test("a subagent's row carries its origin and its parent's id", async () => {
 	assert.equal(byId.size, 0);
 });
 
-test("a state.json from apply() is schema 4 — the contract's keys and nothing extra", async () => {
+test("a state.json from apply() is schema 5 — the contract's keys and nothing extra", async () => {
 	// Field for field. If a key is added to or removed from the payload without the contract
 	// changing, this test is the one that says so.
 	const events = [
@@ -234,7 +234,7 @@ test("a state.json from apply() is schema 4 — the contract's keys and nothing 
 		["context", "finishedUrl", "hostPid", "openUrl", "plugin", "retire", "schema", "sessions", "settings", "summary", "wallMs"],
 		"the root carries the contract's keys — `finishedUrl` is the ✕'s route, published or null",
 	);
-	assert.equal(state.schema, 4);
+	assert.equal(state.schema, 5);
 	assert.equal(state.plugin, "dsh-agents-notch/host");
 	assert.equal(typeof state.wallMs, "number");
 	assert.ok(Math.abs(Date.now() - state.wallMs) < 60_000, "wallMs is the host clock at write time");
@@ -262,7 +262,7 @@ test("a state.json from apply() is schema 4 — the contract's keys and nothing 
 	const [row] = state.sessions;
 	assert.deepEqual(
 		Object.keys(row).sort(),
-		["activity", "approval", "approvedAt", "contextTokens", "cwd", "errorStreak", "id", "identity", "origin", "parentSession", "project", "since", "status", "steps", "title"],
+		["activity", "approval", "approvedAt", "contextTokens", "cwd", "errorStreak", "id", "identity", "origin", "parentSession", "project", "since", "status", "steps", "subagents", "title"],
 	);
 	assert.equal(row.id, "4bd2f6ab-96d3-4808-a2fc-a1186848cfd9");
 	assert.equal(row.title, "Argon 0/4 on laptop — fixed");
@@ -496,8 +496,10 @@ test("the settings door refuses a cross-origin or non-JSON POST", async () => {
 	assert.equal(tool.status, 200, "a headerless local POST is still allowed");
 });
 
-test("the edge reaches the row once the session is working", async () => {
-	/** A log the backstop replays: one turn in flight. */
+test("a working subagent folds into its lead as a count, and takes no row", async () => {
+	// Schema 5, end to end through `apply()`: the two halves must not disagree about this. The lead is
+	// working too (the stub replays the same turn for both sessions), so the child is RUNNING and folds;
+	// the edge still reaches the payload, as the count on the parent.
 	const events = [{ type: "turn/start", data: { turn: 1 } }];
 	const entries = [
 		{
@@ -519,15 +521,19 @@ test("the edge reaches the row once the session is working", async () => {
 	// file — a sweep only fills memory — so the poll interval is short too.
 	const state = await until(() => {
 		const published = host.state();
-		return published?.sessions.some((row) => row.id === "4bd2f6ab-96d3-4808-a2fc-a1186848cfd9") ? published : null;
+		return published?.sessions.some((row) => row.id === "session-lead") ? published : null;
 	});
 	for (const dispose of host.disposers) dispose();
 
-	assert.notEqual(state, null, "no row for the working subagent");
-	const sub = state.sessions.find((row) => row.id === "4bd2f6ab-96d3-4808-a2fc-a1186848cfd9");
-	assert.equal(sub.origin, "subagent");
-	assert.equal(sub.parentSession, "session-lead");
-	assert.equal(sub.status, "working");
+	assert.notEqual(state, null, "no row for the lead");
+	assert.equal(
+		state.sessions.some((row) => row.id === "4bd2f6ab-96d3-4808-a2fc-a1186848cfd9"),
+		false,
+		"a running subagent is a number on its lead, not an agent of its own",
+	);
+	const lead = state.sessions.find((row) => row.id === "session-lead");
+	assert.equal(lead.subagents, 1);
+	assert.equal(state.summary.total, 1, "the summary counts rows, so it cannot disagree with the board");
 });
 
 test("a session that is working again has its stale retirement cleared", async () => {
