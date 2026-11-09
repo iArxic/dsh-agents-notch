@@ -159,35 +159,34 @@ internal static class Draw
 
     internal static Color Blend(Color a, Color b, double t) => Color.FromRgb(        (byte)(a.R + (b.R - a.R) * t), (byte)(a.G + (b.G - a.G) * t), (byte)(a.B + (b.B - a.B) * t));
 
-    // ── the bot's paint (design round: `--skin`) ────────────────────────────────────────────────────
+    // ── the bot's paint ────────────────────────────────────────────────────────────────
     //
-    // The bots were flat: a solid identity rim and a face that is white with a pale-blue falloff, which
-    // at 14–16 px reads as a plain white dot. These three variants give the paint depth so a still can
-    // be photographed from one fixture. "" is exactly what shipped, so the live notch is untouched
-    // until a variant is picked and the switch and the losers are deleted.
+    // SHADE WHAT IS LARGE, COLOUR WHAT IS SMALL (0.2.0; picked over nine rendered variants).
+    //
+    // The tab's bot is 16 px with a 1.7 px rim. A gradient across that is not there, and neither is a faint
+    // tint: what survives at that size is one large colour block. So a small bot carries its identity in
+    // the FACE, and its rim is only a slightly lighter version of that same colour — not a ring with a head
+    // inside it, one coloured object with an edge (iArxic: "we don't need the ring to be visible if the ring
+    // color is the same as the head").
+    //
+    // The 60 px bot has room for light, so it keeps the near-white face, a gradient rim and a sheen. Both
+    // are one function each, branching on size, so the tab, the rows and the big bot cannot drift.
 
-    /// <summary>`--skin rim|face|gloss`: how the bots are painted. Empty means as shipped.</summary>
-    internal static string Skin = "";
+    /// <summary>Above this the bot is big enough to show a gradient and a sheen.</summary>
+    const double BigBot = 30;
+
+    /// <summary>The face's outer stop: saturated on a small bot, a hint of the hue on the big one.</summary>
+    internal static Color FaceOuter(Color identity, double size) =>
+        Blend(identity, C("#FFFFFF"), size >= BigBot ? .91 : .34);
 
     /// <summary>
-    /// The rim. A gradient across it (light from the upper left, the session's own hue in the middle, a
-    /// shade at the lower right) reads as a ring turning away from a light — the cheapest way to stop a
-    /// 1.5 px stroke looking like printer's ink.
+    /// The rim. Small: the face's own colour lightened a step, so the bot reads as one coloured object with
+    /// an edge. Large: a gradient, light from the upper left, the hue in the middle, a shade at the lower
+    /// right — a ring turning away from a light.
     /// </summary>
-    internal static Brush RimPaint(Color identity, double opacity = 1, double size = 60)
+    internal static Brush RimPaint(Color identity, double size, double opacity = 1)
     {
-        // shade what is LARGE, colour what is SMALL: a gradient across a 1.7 px stroke is invisible, so the
-        // small bots get one solid, deeper ring and the big one gets the light.
-        if (Skin == "coin") return B(Blend(identity, C("#FFFFFF"), .70), opacity);
-        if (Skin is "adapt34") return B(Blend(identity, C("#000000"), .20), opacity);   // .34 density, DARK ring
-        if (Skin is "adapt40l") return B(Blend(identity, C("#FFFFFF"), .45), opacity);  // .40 density, COIN ring
-        if ((Skin is "adapt2" or "adapt3" or "adapt4") && size < 30)
-            return B(Skin == "adapt4"
-                ? Blend(identity, C("#FFFFFF"), .45)                        // a light ring, the coin's edge
-                : Blend(identity, C("#000000"), Skin == "adapt2" ? .22 : .16), opacity);
-        if (Skin is "tint") return B(Blend(identity, C("#000000"), .24), opacity);
-        if (Skin == "adaptive" && size < 30) return B(Blend(identity, C("#000000"), .22), opacity);
-        if (Skin.Length == 0) return B(identity, opacity);
+        if (size < BigBot) return B(Blend(identity, C("#FFFFFF"), .45), opacity);
         var g = new LinearGradientBrush { StartPoint = new Point(.18, 0), EndPoint = new Point(.82, 1) };
         g.GradientStops.Add(new GradientStop(Blend(identity, C("#FFFFFF"), .52), 0));
         g.GradientStops.Add(new GradientStop(identity, .44));
@@ -197,31 +196,12 @@ internal static class Draw
     }
 
     /// <summary>
-    /// The face's outer stop. The shipped bot falls off to a pale blue whatever the session's hue; the
-    /// `face` variant falls off to a pastel of the session's OWN hue, so the bot is visibly its colour.
+    /// A soft sheen over the upper half of the face — the big bot only. Same box as the face, so the shape is
+    /// right without a clip: a vertical white gradient, gone just past the middle.
     /// </summary>
-    internal static Color FaceOuter(Color identity, double size = 60) => Skin switch
+    internal static Brush? Sheen(double size)
     {
-        "face" or "gloss" => Blend(identity, C("#FFFFFF"), .80),   // a visible pastel of the session hue
-        "both" => Blend(identity, C("#FFFFFF"), .91),              // a hint of it, and the white stays white
-        "tint" => Blend(identity, C("#FFFFFF"), .55),              // colour MASS: the only thing 16 px shows
-        "coin" => Blend(identity, C("#FFFFFF"), .28),              // the bot IS its colour, with a light ring
-        "adaptive" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .56),
-        "adapt2" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .40),
-        "adapt3" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .30),
-        "adapt4" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .34),
-        "adapt34" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .34),
-        "adapt40l" => size >= 30 ? Blend(identity, C("#FFFFFF"), .91) : Blend(identity, C("#FFFFFF"), .40),
-        _ => C("#D8E4FF"),
-    };
-
-    /// <summary>
-    /// A soft sheen over the upper half of the face (`gloss` only). Same box as the face, so the shape is
-    /// right without a clip: a vertical white gradient, fading out just past the middle.
-    /// </summary>
-    internal static Brush? Sheen(double size = 60)
-    {
-        if (Skin is not ("gloss" or "both") && !(Skin.StartsWith("adapt") && size >= 30)) return null;
+        if (size < BigBot) return null;
         var g = new LinearGradientBrush { StartPoint = new Point(.25, 0), EndPoint = new Point(.7, 1) };
         g.GradientStops.Add(new GradientStop(Color.FromArgb(0x5E, 0xFF, 0xFF, 0xFF), 0));
         g.GradientStops.Add(new GradientStop(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF), .48));
@@ -406,9 +386,9 @@ internal sealed class OrbView : Canvas
         Children.Add(_spin);
 
         _identity = identity;
-        // with `--skin rim` this is a gradient, so the paint and the ring that carries it are both kept:
+        // the paint depends on the bot's size, so the stroke is replaced whole rather than recoloured:
         // a re-colour replaces the stroke whole rather than editing a SolidColorBrush's Colour
-        _rimBrush = Draw.RimPaint(identity, 1, size);
+        _rimBrush = Draw.RimPaint(identity, size);
         _rimGlow = new DropShadowEffect { Color = identity, BlurRadius = 20, ShadowDepth = 0, Opacity = .6 };
         _rimRing = new Ellipse
         {
@@ -509,7 +489,7 @@ internal sealed class OrbView : Canvas
     {
         _aura.Fill = new RadialGradientBrush(state, Colors.Transparent);
         _identity = identity;
-        _rimBrush = Draw.RimPaint(identity, 1, _size);
+        _rimBrush = Draw.RimPaint(identity, _size);
         if (_rimRing is not null) _rimRing.Stroke = _rimBrush;
         _faceFill.GradientStops[1].Color = _dim ? Draw.C("#B9BCC6") : Draw.FaceOuter(identity, _size);
         _rimGlow.Color = identity;
@@ -711,7 +691,7 @@ internal sealed class MiniBotView : Canvas
 
         _rim = new Ellipse
         {
-            Width = size, Height = size, Stroke = Draw.RimPaint(identity, .95, size),
+            Width = size, Height = size, Stroke = Draw.RimPaint(identity, size, .95),
             StrokeThickness = Math.Max(1.2, size * .11),
         };
         this.Add(_rim, Off, Off);
@@ -854,7 +834,7 @@ internal sealed class MiniBotView : Canvas
         _aura.Fill = new RadialGradientBrush(state, Colors.Transparent);
         _ringLineBrush.Color = state;
         _ringBloomBrush.Color = state;
-        _rim.Stroke = Draw.RimPaint(identity, .95, _size);
+        _rim.Stroke = Draw.RimPaint(identity, _size, .95);
         _faceFill.GradientStops[1].Color = Draw.FaceOuter(identity, _size);
     }
 }

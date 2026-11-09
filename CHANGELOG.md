@@ -16,6 +16,13 @@ back to normal — a slow route recovers at once, a dead one stops being asked. 
 rule now covers the host's own tick and its log sweep, because `setInterval` does not wait for an
 async callback and both of those can outlast their period.
 
+**The bots got their colour back.** The tab's bot is 16 px with a 1.7 px rim, so a gradient across it was
+invisible and a faint face tint was invisible too — four working sessions still looked like four white
+dots with four thin rings. What survives at that size is one large colour block, so the *face* now
+carries the identity and the rim is only a slightly lighter version of it: not a ring with a head inside
+it, one coloured object with an edge. The 60 px bot has room for light and keeps its near-white face, a
+gradient rim and a sheen. Chosen by rendering nine variants and judging them at true size, not at 4×.
+
 **The Settings pane's controls stopped looking borrowed.** The `<select>` popup came out white with a
 blue selection bar inside a dark pane, and the slider was white because `accent-color` inherited the
 app's ink. A popup is an OS window, so the lever is `color-scheme`: the pane now measures the colour it

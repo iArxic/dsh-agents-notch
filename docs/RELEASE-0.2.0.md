@@ -4,7 +4,7 @@
 asset exists. This file is for whoever cuts the release; delete it once 0.2.0 ships and fold anything
 still useful into `INTERNALS.md`.
 
-0.2.0 carries **two** changes: the host stops stacking close-out probes (§1–§4), and the board stops
+0.2.0 carries **three** changes: the host stops stacking close-out probes (§1–§4), and the board stops
 drawing delegated sessions as agents of their own (§2a). The second one changes the **window**, so the
 release asset is not the 0.1.9 bytes any more.
 
@@ -105,6 +105,30 @@ fixture with a lead that has 1, 3, 7 and 0 children:
 The `×` is load-bearing: a bare trailing digit reads as part of the title ("Wrong direction at line 3"
 would be a landmine). The rule that decided it is arithmetic — a 14 px bot has room for an 11 px disc,
 and an 8 px digit inside that collides with the state ring, the aura, the title and the next row.
+
+## 2b. And the bots' paint
+
+The tab's bot is **16 px with a 1.7 px rim**. Every earlier bot was a white face inside a solid identity
+rim, so while four sessions worked, the tab was four white dots with four thin rings — the identity colour
+occupied about 6 % of the drawing.
+
+Two rounds of "make it richer" failed for the same reason and it is arithmetic, not taste: **at 16 px a
+gradient across 1.7 px is not there, and neither is a 9 % face tint.** Nine variants were photographed
+before that sank in (`docs/design/icons/`). What survives that size is one large colour block, so:
+
+| bot | face | rim |
+|---|---|---|
+| small (tab 16 px, rows 14 px) | 34 % white + the session's hue | the same colour, 45 % white — an edge, not a ring |
+| big (60 px) | 91 % white + a hint of the hue, plus a sheen | a gradient, light from the upper left |
+
+iArxic's rule, which settled it: *"we don't need the ring to be visible if the ring color is the same as
+the head."* A bot is one coloured object with an edge; the ring was never the thing being drawn. The big
+bot keeps the light because it is big enough to show it — **shade what is large, colour what is small.**
+
+**The judging method is part of the fix.** A 4× still flatters a gradient and cannot answer "does this
+read small", which is why three rounds of variants looked identical to the person actually using the
+notch. Every comparison here is a 4× still **downscaled to true size**, shown beside the same pixels at
+3–4× nearest-neighbour (`real-*.png`, `compare-*.png`, `ladder/`, `factorial-*.png`).
 
 ## 3. The other half, and why this release is safe without it
 

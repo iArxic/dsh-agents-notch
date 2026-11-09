@@ -113,11 +113,6 @@ internal sealed class Options
     public Face? ForceFace;
     /// <summary>`--island x1|x4|d1`: hold the tab expanded as that alert, for stills.</summary>
     public string? Island;
-    /// <summary>
-    /// `--skin rim|face|gloss`: DESIGN ROUND ONLY - how the bots are painted. Empty (the default, and what
-    /// the host spawns) is exactly what shipped; the loser variants are deleted once one is picked.
-    /// </summary>
-    public string Skin = "";
 
     public static Options Parse(string[] args)
     {
@@ -148,7 +143,6 @@ internal sealed class Options
                 case "--record-ms": if (i + 1 < args.Length && double.TryParse(args[++i], out var rms)) o.RecordMs = rms; break;
                 case "--open-at": if (i + 1 < args.Length && double.TryParse(args[++i], out var oa)) o.OpenAtMs = oa; break;
                 case "--close-at": if (i + 1 < args.Length && double.TryParse(args[++i], out var ca)) o.CloseAtMs = ca; break;
-                case "--skin": if (i + 1 < args.Length) Draw.Skin = args[++i]; break;
                 case "--face":
                     if (i + 1 >= args.Length) { Log.Write("--face: needs a face name"); break; }
                     if (FaceArt.TryParse(args[++i], out var face)) o.ForceFace = face;
