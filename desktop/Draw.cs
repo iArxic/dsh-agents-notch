@@ -157,8 +157,58 @@ internal static class Draw
         StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
     };
 
-    internal static Color Blend(Color a, Color b, double t) => Color.FromRgb(
-        (byte)(a.R + (b.R - a.R) * t), (byte)(a.G + (b.G - a.G) * t), (byte)(a.B + (b.B - a.B) * t));
+    internal static Color Blend(Color a, Color b, double t) => Color.FromRgb(        (byte)(a.R + (b.R - a.R) * t), (byte)(a.G + (b.G - a.G) * t), (byte)(a.B + (b.B - a.B) * t));
+
+    // ── the bot's paint (design round: `--skin`) ────────────────────────────────────────────────────
+    //
+    // The bots were flat: a solid identity rim and a face that is white with a pale-blue falloff, which
+    // at 14–16 px reads as a plain white dot. These three variants give the paint depth so a still can
+    // be photographed from one fixture. "" is exactly what shipped, so the live notch is untouched
+    // until a variant is picked and the switch and the losers are deleted.
+
+    /// <summary>`--skin rim|face|gloss`: how the bots are painted. Empty means as shipped.</summary>
+    internal static string Skin = "";
+
+    /// <summary>
+    /// The rim. A gradient across it (light from the upper left, the session's own hue in the middle, a
+    /// shade at the lower right) reads as a ring turning away from a light — the cheapest way to stop a
+    /// 1.5 px stroke looking like printer's ink.
+    /// </summary>
+    internal static Brush RimPaint(Color identity, double opacity = 1)
+    {
+        if (Skin.Length == 0) return B(identity, opacity);
+        var g = new LinearGradientBrush { StartPoint = new Point(.18, 0), EndPoint = new Point(.82, 1) };
+        g.GradientStops.Add(new GradientStop(Blend(identity, C("#FFFFFF"), .52), 0));
+        g.GradientStops.Add(new GradientStop(identity, .44));
+        g.GradientStops.Add(new GradientStop(Blend(identity, C("#000000"), .30), 1));
+        g.Opacity = opacity;
+        return g;
+    }
+
+    /// <summary>
+    /// The face's outer stop. The shipped bot falls off to a pale blue whatever the session's hue; the
+    /// `face` variant falls off to a pastel of the session's OWN hue, so the bot is visibly its colour.
+    /// </summary>
+    internal static Color FaceOuter(Color identity) => Skin switch
+    {
+        "face" or "gloss" => Blend(identity, C("#FFFFFF"), .80),   // a visible pastel of the session hue
+        "both" => Blend(identity, C("#FFFFFF"), .91),              // a hint of it, and the white stays white
+        _ => C("#D8E4FF"),
+    };
+
+    /// <summary>
+    /// A soft sheen over the upper half of the face (`gloss` only). Same box as the face, so the shape is
+    /// right without a clip: a vertical white gradient, fading out just past the middle.
+    /// </summary>
+    internal static Brush? Sheen()
+    {
+        if (Skin is not ("gloss" or "both")) return null;
+        var g = new LinearGradientBrush { StartPoint = new Point(.25, 0), EndPoint = new Point(.7, 1) };
+        g.GradientStops.Add(new GradientStop(Color.FromArgb(0x5E, 0xFF, 0xFF, 0xFF), 0));
+        g.GradientStops.Add(new GradientStop(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF), .48));
+        g.GradientStops.Add(new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 1));
+        return g;
+    }
 
     /// <summary>A task line is prose, not a table row: a state dot and the sentence.</summary>
     internal static Canvas TaskLine(string text, string kind, double w, bool dim = false, string tail = "")
@@ -268,7 +318,7 @@ internal sealed class OrbView : Canvas
     readonly Rectangle _eyeL, _eyeR;
     readonly System.Windows.Shapes.Path _arcL, _arcR;
     readonly RotateTransform _tiltEyeL, _tiltEyeR, _tiltArcL, _tiltArcR;
-    readonly SolidColorBrush _rimBrush, _ringBrush, _ringBloomBrush;
+    readonly SolidColorBrush _ringBrush, _ringBloomBrush;
     readonly DropShadowEffect _rimGlow, _ringGlow;
     // F1d (round 12): a short arc that orbits the face while the session works. No effect on it:
     // an effect on an element that rotates every frame is re-rasterised every frame.
@@ -336,14 +386,18 @@ internal sealed class OrbView : Canvas
         };
         Children.Add(_spin);
 
-        _rimBrush = Draw.B(identity);
+        _identity = identity;
+        // with `--skin rim` this is a gradient, so the paint and the ring that carries it are both kept:
+        // a re-colour replaces the stroke whole rather than editing a SolidColorBrush's Colour
+        _rimBrush = Draw.RimPaint(identity);
         _rimGlow = new DropShadowEffect { Color = identity, BlurRadius = 20, ShadowDepth = 0, Opacity = .6 };
-        Children.Add(new Ellipse
+        _rimRing = new Ellipse
         {
             Width = size + 5, Height = size + 5, Stroke = _rimBrush, StrokeThickness = 2.5, Effect = _rimGlow,
-        });
+        };
+        Children.Add(_rimRing);
 
-        _faceFill = new RadialGradientBrush(Draw.C("#FFFFFF"), Draw.C("#D8E4FF")) { GradientOrigin = new Point(.38, .3) };
+        _faceFill = new RadialGradientBrush(Draw.C("#FFFFFF"), Draw.FaceOuter(identity)) { GradientOrigin = new Point(.38, .3) };
         _face = new Ellipse
         {
             Width = size, Height = size,
@@ -351,6 +405,8 @@ internal sealed class OrbView : Canvas
             Effect = new DropShadowEffect { Color = Draw.C("#7C9BE0"), BlurRadius = size * .4, ShadowDepth = 0, Opacity = .45 },
         };
         this.Add(_face, Off, Off);
+        if (Draw.Sheen() is { } sheen)
+            this.Add(new Ellipse { Width = size, Height = size, Fill = sheen, IsHitTestVisible = false }, Off, Off);
 
         // One geometry for both eye shapes: the eye's centre never moves, and a closed bar is a
         // capsule of `_thick`, which is exactly what a zero-bend arc draws.
@@ -412,16 +468,19 @@ internal sealed class OrbView : Canvas
         if (a > 0) _spinTurn.Angle = angle;      // a hidden spinner does not need to turn
     }
 
+    Brush _rimBrush;
+    Ellipse? _rimRing;
+    Color _identity;
+    bool _dim;
+
     /// <summary>An offline host: the face greys and the bot steps back, so nothing looks live.</summary>
     public void SetDim(bool dim)
     {
         if (dim == _dim) return;
         _dim = dim;
-        _faceFill.GradientStops[1].Color = dim ? Draw.C("#B9BCC6") : Draw.C("#D8E4FF");
+        _faceFill.GradientStops[1].Color = dim ? Draw.C("#B9BCC6") : Draw.FaceOuter(_identity);
         Opacity = dim ? .72 : 1;
     }
-
-    bool _dim;
 
     /// <summary>
     /// Re-colour the bot in place: the ring and the aura take the STATE, the rim the IDENTITY.
@@ -430,7 +489,10 @@ internal sealed class OrbView : Canvas
     public void SetColours(Color state, Color identity)
     {
         _aura.Fill = new RadialGradientBrush(state, Colors.Transparent);
-        _rimBrush.Color = identity;
+        _identity = identity;
+        _rimBrush = Draw.RimPaint(identity);
+        if (_rimRing is not null) _rimRing.Stroke = _rimBrush;
+        _faceFill.GradientStops[1].Color = _dim ? Draw.C("#B9BCC6") : Draw.FaceOuter(identity);
         _rimGlow.Color = identity;
         _ringBrush.Color = state;
         _ringBloomBrush.Color = state;
@@ -545,6 +607,7 @@ internal sealed class MiniBotView : Canvas
     const double Off = 7;                    // room for the ring outside the rim
     readonly double _size, _eyeW, _baseY, _maxH, _thick, _gap;
     readonly Ellipse _aura, _rim;
+    readonly RadialGradientBrush _faceFill;
     readonly System.Windows.Shapes.Path _ringBloom, _ringLine;
     readonly double _ringCirc;
     double _sweep = -1;                      // ring drawn so far, 0..1; -1 = not driven yet
@@ -618,15 +681,18 @@ internal sealed class MiniBotView : Canvas
         };
         Children.Add(_spin);
 
+        _faceFill = new RadialGradientBrush(Draw.C("#FFFFFF"), Draw.FaceOuter(identity)) { GradientOrigin = new Point(.38, .3) };
         this.Add(new Ellipse
         {
             Width = size, Height = size,
-            Fill = new RadialGradientBrush(Draw.C("#FFFFFF"), Draw.C("#D8E4FF")) { GradientOrigin = new Point(.38, .3) },
+            Fill = _faceFill,
         }, Off, Off);
+        if (Draw.Sheen() is { } sheen)
+            this.Add(new Ellipse { Width = size, Height = size, Fill = sheen, IsHitTestVisible = false }, Off, Off);
 
         _rim = new Ellipse
         {
-            Width = size, Height = size, Stroke = Draw.B(identity, .95),
+            Width = size, Height = size, Stroke = Draw.RimPaint(identity, .95),
             StrokeThickness = Math.Max(1.2, size * .11),
         };
         this.Add(_rim, Off, Off);
@@ -769,7 +835,8 @@ internal sealed class MiniBotView : Canvas
         _aura.Fill = new RadialGradientBrush(state, Colors.Transparent);
         _ringLineBrush.Color = state;
         _ringBloomBrush.Color = state;
-        _rim.Stroke = Draw.B(identity, .95);
+        _rim.Stroke = Draw.RimPaint(identity, .95);
+        _faceFill.GradientStops[1].Color = Draw.FaceOuter(identity);
     }
 }
 
