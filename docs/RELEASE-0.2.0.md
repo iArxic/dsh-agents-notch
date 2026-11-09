@@ -201,6 +201,18 @@ matches the version. `tools/publish-release.ps1` refuses a version/tag mismatch 
 - The count was verified **by rendering**: nine treatments photographed from
   `desktop/fixtures/teams.json` (a lead with 1, 3, 7 and 0 children) at 4× device scale, the window's
   own `--shot` reading a schema-5 payload. The shipped one is `docs/design/teammates/10-shipped-crop.png`.
+- **The published binary itself runs and draws the release.** `tools/publish.ps1` produced
+  `dist/win-x64/AgentsNotch.exe` (65.1 MB, self-contained, one file, no strays), `FileVersion 0.2.0.0`,
+  `ProductVersion 0.2.0+<commit>`, and a `.sha256` that matches the bytes. Run from `dist/` against
+  `teams.json` it rendered `docs/design/icons/released-exe.png` — tinted bot faces, the `×3` / `×7`
+  counts, the cut-out on the big bot — so the shipping artefact is the code that was reviewed, not just
+  a debug build of it.
+- One measurement worth keeping: the single-file exe **could not create**
+  `%TEMP%\an-bundle-verify\` from inside this session ("Failed to create directory … for extracting
+  bundled files", no window at all). Pointing `DOTNET_BUNDLE_EXTRACT_BASE_DIR` at a directory under the
+  workspace made it run immediately. The host already spawns it under `<stateDir>\bundle` (§5.5 of
+  `AGENTS.md`); this is the same trap reached by hand, and it fails *before* `Main`, so there is no log
+  line to read.
 
 ## 7. Not verified — do not claim it
 
