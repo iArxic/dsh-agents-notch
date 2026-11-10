@@ -25,8 +25,8 @@ decides what is true — that split is the whole architecture, and every "the no
 question is answered by looking at `state.json` first.
 
 ```
-lib/host-0.2.0.js   the entry the plugin row mounts (see the cache trap, §5.1); host-0.1.9.js is kept
-                     beside it as the rollback entry
+lib/host-0.2.1.js   the entry the plugin row mounts (see the cache trap, §5.1); host-0.2.0.js (the
+                     published 0.2.0 bytes) and host-0.1.9.js are kept as rollback entries
 lib/host.js         re-export shim: the stable import path for tests and readers
 lib/state.js        pure reducer: events -> session records -> the published rows (schema 5); it also
                     folds a running delegated session into its lead as a count
@@ -44,9 +44,6 @@ tools/install-window.ps1   install the window from a release URL, a path, or dis
 tools/publish-release.ps1  push, tag, GitHub release + assets, npm publish
 tools/design-banner*.ps1   the old banner and its variants (GDI+, no browser)
 tools/readme-media.py      every README picture: stills (`shots`), the demo film (`record`), layout (`art`)
-docs/RELEASE-0.2.0.md      the 0.2.0 release brief — both changes (§1–§2a), the measurements, and why the
-                           release asset must now be REBUILT (§5).
-                           DELETE IT once 0.2.0 ships; fold anything still useful into INTERNALS.md.
 ```
 
 ## 2. The loop
@@ -116,10 +113,12 @@ npm package 0.1.x  ->  git tag v0.1.x  ->  release asset AgentsNotch.exe + .sha2
 ```
 
 **`releaseAssetUrl()` derives its URL from the package version, so a version bump with no matching
-release installs for nobody.** 0.2.0 changed the **window** (the `×N` teammate count), so the asset must
-be **rebuilt**, not re-pointed at the 0.1.9 bytes: an old window draws no count at all and silently
-ignores schema 5. Build it with `tools/publish.ps1`, attach the `.exe` and its `.sha256` to `v0.2.0`, or
-do not publish the package. `docs/RELEASE-0.2.0.md` §5 is the checklist.
+release installs for nobody.** A release that changes the **window** (0.2.0's `×N` teammate count is the
+example) must **rebuild** the asset rather than re-point at the older bytes: an old window draws no count
+at all and silently ignores schema 5. A host-only release still needs a release asset at its own tag,
+because the installed binary is looked for under `window/<version>/` and fetched from
+`releases/download/v<version>/`. Build it with `tools/publish.ps1` and attach the `.exe` and its
+`.sha256` to `v<version>`, or do not publish the package. `docs/PUBLISHING.md` is the runbook.
 
 The host's auto-fetch derives its URL as `v<package version>`, so bumping the package without cutting
 the matching release installs for nobody. `tools/publish-release.ps1 -DryRun` prints every step;
@@ -133,7 +132,7 @@ in the 30-second window or a granular token with "bypass 2FA").
 Re-applying a plugin row serves the module the app already imported. Editing `lib/host.js` and
 re-mounting changes **nothing** — measured twice, once as a settings route that answered `404` while the
 code sat in the file. To land code without restarting the app: give the entry a **new file name** and
-point `package.json`'s `main` at it (that is why the entry is `host-0.2.0.js`), keeping `lib/host.js` as
+point `package.json`'s `main` at it (that is why the entry is `host-0.2.1.js`), keeping `lib/host.js` as
 a re-export shim for the imports. A `?v=` query on a row's `name` makes the import fail outright.
 
 ### 5.2 A duplicate JSON key deletes a feature silently
@@ -186,17 +185,44 @@ git reset            # rebuilds the index; add `git config core.autocrlf false` 
 
 The remote is the safety net: `git fetch && git reset --hard origin/master`.
 
+### 5.7 A live upgrade can leave a SECOND host instance writing `state.json`
+
+Reported 2026-11-10 as *"keeps switching from normal working to idle, no reason, back and forth"*.
+It was not the board: a live `plugin_manager` remove of 0.1.9 + install of 0.2.0 mounted the host
+again while the old instance's `setInterval` kept running, so `state.json` alternated between two
+payloads (`schema 4` with two frozen `working` sessions, `schema 5` with the real board) every
+340 ms. The window polls the file every 150 ms, so it rewrote the notch several times a second —
+`window.log` shows `pose — front A|working -> B|working` over and over, and the tab alternating
+`2 working` / `1 working` — which is the flicker the human described. Neither board was wrong; one
+was frozen.
+
+How to recognise it in one command: sample `state.json` for a few seconds and look at `schema`
+and `hostPid`. Alternating `schema` values with the SAME `hostPid` means two modules in one process
+(the schema number is what identifies which version is writing). `boot` lines in
+`host-report.jsonl` count applies, so more of them than app launches is the same tell.
+
+Two guards now live in the host: one writer per `statePath` (a later `apply()` stands the previous
+instance down and logs `boot-superseded`, and `writeState()` refuses to publish from a stood-down
+instance) and, separately, a record whose session left `listSessions()` for `detachedGraceMs` goes
+idle instead of being republished as `working` forever. **Neither makes a restart unnecessary**:
+only a restart guarantees a single instance, and it is what clears an already-leaked one.
+`INTERNALS.md` Round 16 is the full diagnosis.
+
 ## 6. State of the work, and what is still unverified
 
-**0.2.0 is tagged `v0.2.0` and its asset is built, NOT published** (2026-11-09: tag local, `dist/win-x64/AgentsNotch.exe` 65.1 MB + .sha256; no GitHub release, no npm). It makes three changes. The first is a host fix: 0.1.9 could crash the
-harness it runs inside, by starting a second close-out probe while the first was still in flight. Four
-guards now prevent that (one probe at a time, exponential backoff, one tick/sweep at a time, report lines
-throttled to one a minute), plus a 5 s reuse of the `listSessions()` answer. Measured on this machine:
-host CPU 179–215 % → ~35 %, host memory 3–4.4 GB rising to OOM → ~640 MB flat, `finished-failed` ~8/s →
-zero in 15 minutes; 75 tests pass. 0.2.0 also folds a running delegated session into the session that
-delegated it as a count (`×N`, schema 5) instead of giving it a row of its own; that half changes the
-window, so the release asset has to be rebuilt rather than re-pointed at the 0.1.9 bytes. `docs/RELEASE-0.2.0.md` is the record, the checklist, and the one
-release-asset trap; `docs/INTERNALS.md` Round 14 is the diagnosis.
+**0.2.0 is PUBLISHED** (verified 2026-11-10): npm `latest` is `0.2.0` (`gitHead 0fd6c94`), and the GitHub
+release `v0.2.0` carries `AgentsNotch.exe` (68,293,299 bytes, **21 downloads**) plus its `.sha256`, whose
+digest `1d2955327e…` is byte-identical to `dist/win-x64/AgentsNotch.exe`. Its record is CHANGELOG 0.2.0,
+`INTERNALS.md` Round 14 (the probe storm and heap death) and Round 15 (teammates folded into their lead).
+The published host is the pre-guard code, so it has the trap in §5.7.
+
+**0.2.1 is prepared, NOT published.** A host-only release: one writer per `state.json` and no frozen
+`working` rows (§5.7, `INTERNALS.md` Round 16). The entry moved to `lib/host-0.2.1.js` — a new file name,
+so an in-app upgrade imports fresh code instead of the cached module (§5.1) — `host-0.2.0.js` is kept as
+the rollback copy, and the package/window versions moved to 0.2.1 together so they cannot drift. 77 tests
+pass. What remains is the human half: rebuild the window (`tools/publish.ps1`), create the `v0.2.1`
+release with its `.exe` + `.sha256`, and `npm publish` with the 2FA approval. `tools/publish-release.ps1 -DryRun`
+prints every step.
 
 Verified before that, in 0.1.x: 65 tests; the host fetching its own window from the release (hash checked);
 `install-window.ps1` from a URL; both plugin install paths (registry and local link); the settings route
@@ -231,9 +257,11 @@ whether the Settings pane renders correctly in the app until a human reloads and
 |---|---|
 | no notch at all | `host-report.jsonl` — `window-missing`, `window-fetch*`, `window-exit` |
 | a row shows the wrong state | `state.json` (`sessions[]`), then `lib/state.js` and the session log's events |
+| the bot flickers working ↔ idle, or rows appear and vanish every second | §5.7: two host instances on one `state.json`. Sample the file for `schema`/`hostPid`, count `boot` lines, then restart the app |
+| a session shows `working` with a frozen step count long after it ended | §5.7 — a record whose session left the live list; `session-detached` in `host-report.jsonl` is the fix firing |
 | the face does not animate / no ring | §5.3, then `--log` with `--freeze` |
 | the pane is missing from Settings | §5.2, then `dsh.client`/`exports` in the installed `package.json` |
 | a settings change does nothing | `GET /agents-notch/settings` — does `settings` differ from `stored`? |
 | an install on a fresh machine fails | §4: package version, tag, and asset name must agree |
-| the host eats CPU, or the app dies with `heap out of memory` | `docs/RELEASE-0.2.0.md` §1 and `INTERNALS.md` Round 14. Count `finished-failed` lines in `host-report.jsonl`: a repeated identical failure on a per-poll path IS the cause, and the fix is an in-flight guard plus backoff, not a bigger heap. |
+| the host eats CPU, or the app dies with `heap out of memory` | `INTERNALS.md` Round 14 and CHANGELOG 0.2.0. Count `finished-failed` lines in `host-report.jsonl`: a repeated identical failure on a per-poll path IS the cause, and the fix is an in-flight guard plus backoff, not a bigger heap. |
 | `host-report.jsonl` grows without bound | the event is missing from `REPEATED_REPORTS` in the host entry — every per-poll event belongs in that set |

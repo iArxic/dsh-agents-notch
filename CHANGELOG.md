@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.2.1 — one writer per `state.json`, and no frozen `working` rows
+
+Reported as *"keeps switching from normal working to idle, no reason, back and forth."* Both boards it
+was switching between were correct on their own: **two host instances were publishing the same
+`state.json`.**
+
+A live `plugin_manager` remove of 0.1.9 followed by an install of 0.2.0 mounted the host a second time,
+and the first instance's `setInterval` kept running. Measured on this machine (2026-11-10): the file
+alternated every 340 ms between `schema 4` with two sessions frozen at `working` (step counts stuck at
+68 and 14) and `schema 5` with the real board, both naming the same `hostPid`. `window.log` shows the
+window's side of it — `pose — front A|working -> B|working` repeatedly, interleaved with
+`board drawn — tab "2 working"` and `tab "1 working"` — so the notch rewrote itself several times a
+second with a different front session, colour and tab width.
+
+Two fixes, both in the host:
+
+- **One writer per `state.json`, per process.** `apply()` registers itself under its `statePath` in a
+  `Symbol.for`-keyed registry; a later apply stands the previous instance down first and logs
+  `boot-superseded`, and `writeState()` refuses to publish from a stood-down instance, so even an
+  in-flight tick cannot land one last stale frame. The stand-down leaves the window process alone — it
+  is one window under one name-mutex and the successor would not spawn a second one — and it makes the
+  old instance's own disposer unable to kill that window later.
+- **A session that leaves the live list stops being `working`.** `listSessions()` is the authority on
+  attachment, so a record absent from it for `detachedGraceMs` (120 s) with no event in that time goes
+  idle, logs `session-detached`, and the existing drop loop removes it. The two frozen rows above are
+  exactly this case: sessions that ended without a turn-end event kept the last status they had.
+
+The window is unchanged — this release is host-only code — but its assembly version moves with the
+package so the two cannot drift. **A restart is still the only thing that guarantees one instance**;
+this release makes the next leaked one harmless rather than impossible, and the entry file's new name
+means an in-app upgrade lands the new code instead of a cached module.
+
+Verified: 77 tests, 2 of them new — the takeover driven end to end through `apply()` with two instances
+on one state file (no frame from the old config after the new instance's first write), and a record
+whose session disappears from the listing leaving the board.
+
 ## 0.2.0 — the notch stops asking twice, and stops counting teammates as agents
 
 **Performance, measured on the machine that crashed** (before → after, same machine, same day):
@@ -62,8 +98,7 @@ event feed.
 
 Neither half is untouched this time: the state file gains `subagents` (schema 5) and the window draws
 both the teammate count and the new bot paint, so a 0.2.0 install needs the **0.2.0 window binary** — a
-0.1.9 window draws no count and keeps the old white-faced bots. `docs/RELEASE-0.2.0.md` has the full
-record, the release checklist, and the one trap about the release asset.
+0.1.9 window draws no count and keeps the old white-faced bots. The release checklist and the one asset trap are in `docs/PUBLISHING.md`.
 
 ## 0.1.9 — it gets out of your way
 

@@ -866,3 +866,91 @@ test("with autoDownload off the host never reaches for the network, and still pr
 	assert.equal(missing.autoDownload, false);
 	assert.match(missing.fix, /install-window\.ps1/);
 });
+
+test("a second apply on the same state file stands the first one down — one writer, never two boards", async () => {
+	// Reported 2026-11-10 as "the notch keeps switching from working to idle and back". The cause was
+	// not the board: a LIVE 0.1.9 → 0.2.0 install mounted the host a SECOND time and left the first
+	// instance's timers running, so state.json alternated between schema 4 (two frozen sessions) and
+	// schema 5 (the real board) every 340 ms. The window polls the file every 150 ms, so it replayed a
+	// pose transition on every flip — and every transition starts at the idle face.
+	//
+	// The discriminator is the published `context.budget`: two instances, two different configs, so
+	// which one wrote a given frame is unambiguous.
+		const entries = [{ live: true, header: { id: "session-one", cwd: "C:\\work" } }];
+	const events = [{ type: "turn/start", data: { turn: 1 } }];
+	const shared = { pollMs: 60, sweepMs: 60, listingRefreshMs: 30, report: true };
+	// Both instances publish into ONE file — that is the resource they fight over. `startHost` makes
+	// its own temp directory, so `first.dir` is the shared one and the frames are read from it.
+	const first = startHost({ entries, events, config: { ...shared, contextBudget: 111_111 } });
+	const frame = () => readState(join(first.dir, "state.json"));
+	try {
+		const firstFrame = await until(frame);
+		assert.notEqual(firstFrame, null, "the first host never published");
+		assert.equal(firstFrame.context.budget, 111_111);
+
+		const second = startHost({ entries, events, config: { ...shared, stateDir: first.dir, contextBudget: 222_222 } });
+		try {
+			const takenOver = await until(() => {
+				const reportPath = join(first.dir, "host-report.jsonl");
+				if (!existsSync(reportPath)) return null;
+				const lines = readFileSync(reportPath, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+				return lines.some((event) => event.event === "boot-superseded") ? lines : null;
+			});
+			assert.notEqual(takenOver, null, "the takeover was never reported");
+
+			// The handover takes one frame: until the new owner has written, the file still holds what
+			// the old one published. From the first frame that carries the new config on, EVERY frame
+			// must belong to the new instance — one stale frame is one visible flip on the board.
+			const handedOver = await until(() => frame()?.context.budget === 222_222);
+			assert.ok(handedOver, "the new host never took the file over");
+			const frames = [];
+			for (let i = 0; i < 12; i += 1) {
+				frames.push(frame());
+				await new Promise((resolve) => setTimeout(resolve, 25));
+			}
+			const budgets = frames.filter(Boolean).map((published) => published.context.budget);
+			assert.ok(budgets.length > 0, "the new host stopped publishing after the takeover");
+			assert.deepEqual(
+				[...new Set(budgets)],
+				[222_222],
+				"the stood-down instance wrote a frame after it lost the file — two writers is the bug",
+			);
+		} finally {
+			for (const dispose of second.disposers) dispose();
+		}
+	} finally {
+		for (const dispose of first.disposers) dispose();
+	}
+});
+
+test("a session that leaves the live list stops being published as working", async () => {
+	// Same incident, second half: the orphaned instance kept two FINISHED sessions on its board as
+	// `working` with frozen step counts, because a session that ends without a turn-end event leaves
+	// its record holding the last status it had. `listSessions()` is the authority on attachment, so a
+	// record that is no longer attached goes idle — and drops off the board with it.
+		const entries = [{ live: true, header: { id: "session-gone", cwd: "C:\\work" } }];
+	const events = [{ type: "turn/start", data: { turn: 1 } }];
+	const host = startHost({
+		entries,
+		events,
+		config: { pollMs: 50, sweepMs: 50, listingRefreshMs: 20, detachedGraceMs: 40 },
+	});
+	try {
+		const working = await until(() => {
+			const published = host.state();
+			return published?.sessions.some((row) => row.id === "session-gone") ? published : null;
+		});
+		assert.notEqual(working, null, "the session never got a row to lose");
+		assert.equal(working.sessions.find((row) => row.id === "session-gone").status, "working");
+
+		entries.length = 0;   // the stub lists the same array, so the session has now left the live list
+		const gone = await until(() => {
+			const published = host.state();
+			return published !== null && published.sessions.length === 0 ? published : null;
+		});
+		assert.notEqual(gone, null, "a detached session kept its `working` row — that is the ghost row");
+		assert.equal(gone.summary.total, 0, "and the summary counts rows, so it cannot disagree");
+	} finally {
+		for (const dispose of host.disposers) dispose();
+	}
+});

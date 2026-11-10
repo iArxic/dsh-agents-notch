@@ -519,7 +519,7 @@ The other half of the story lives outside this repo: the sibling plugin now boun
 took that route from **>90 s to 5 ms**. 0.2.0 does not depend on it — the guards above are what stop the
 storm — but the two together are why the board now says `retire: "route"` instead of falling back.
 
-Release record, checklist and the asset trap: `docs/RELEASE-0.2.0.md`.
+The release record is CHANGELOG 0.2.0 and docs/PUBLISHING.md; the one trap worth carrying forward is that the release asset must be REBUILT whenever the window changes, because `releaseAssetUrl()` derives its URL from the package version and a stale window silently ignores a new schema.
 
 ## 3. The architecture — two parts, one job each
 
@@ -1021,3 +1021,51 @@ Two things this cost that are worth not paying again:
   record; a corrupt log that parents two sessions to each other then folded both, and the board showed
   nothing for two working sessions. `rootOf()` now walks to the top-most session and returns `""` when
   the chain never reaches one the human opened, which surfaces both instead.
+
+### Round 16 — a live upgrade left a second writer (2026-11-10)
+
+Reported as *"agents notch keeps switching from normal working to idle, no reason, back and forth."*
+The board was not wrong. **Two host instances were publishing the same `state.json`.**
+
+The window found out how to be sure: sampling the file every 250 ms showed the payload alternating
+between **schema 4 with two frozen `working` sessions** and **schema 5 with the real board** — both
+naming `hostPid` 31824, the same Electron process. Two schema numbers means two MODULES, and
+`lib/host-0.1.9.js` is `SCHEMA = 4` while `lib/host-0.2.0.js` is `SCHEMA = 5`. The host report dated
+the pair exactly: a `boot` at 17:36:59 local started the 0.1.9 window, `plugin_manager` then removed
+0.1.9 and installed 0.2.0 (17:59:29 and 17:59:48), and two more boots mounted 0.2.0 — but the 0.1.9
+instance's `ctx.effect` teardown never ran, so its `setInterval` kept firing.
+
+What that looked like on screen, and why "idle": the window polls the file every 150 ms and the log is
+unambiguous about what it did with the alternation — `pose — front session-50083a07…|working ->
+session-b2d707ee…|working`, over and over, interleaved with `board drawn — tab "2 working"` and
+`board drawn — tab "1 working"`. So the notch rewrote itself several times a second, every time with a
+different front session, a different bot colour and a differently sized tab: a board that flickers
+between two truths reads as a machine that cannot make up its mind, which is what "keeps switching to
+idle and back" describes. Neither board was wrong on its own — the 0.1.9 one was simply frozen at
+17:54.
+
+Two fixes, both in the host:
+
+* **One writer per `state.json`, per process.** `apply()` registers itself in a `Symbol.for`-keyed
+  registry under its `statePath`; a later apply calls the previous instance's stand-down first, logs
+  `boot-superseded`, and `writeState()` refuses to publish from a stood-down instance (an in-flight
+  tick cannot land one last stale frame). The stand-down deliberately does NOT kill the window
+  process: it is one window under one name-mutex, the successor will not spawn a second, and killing
+  it would only make the notch blink. It also leaves the previous instance's disposer unable to kill
+  it later, which is what makes a late teardown harmless.
+* **A session that leaves the live list stops being `working`.** The 0.1.9 board had two sessions
+  frozen at `working` with their step counts stuck at 68 and 14 — sessions that had ended without a
+  turn-end event, so their records kept the last status they had and `snapshot()` published them
+  forever. `listSessions()` is the authority on attachment: a record absent from it for
+  `detachedGraceMs` (120 s) with no event in that time goes idle, logs `session-detached`, and the
+  existing drop loop removes it. Two minutes, not one tick, so a listing hiccup cannot forge a
+  disappearance.
+
+Verified by two new tests in `test/host.test.mjs` — the takeover (`boot-superseded`, and no frame
+from the old config after the new instance's first write) and the ghost row — plus the whole suite,
+21 host tests and 75 overall.
+
+**Do not use a live `plugin_manager` remove/install to upgrade the host half and assume the old
+instance is gone.** A restart is the only thing that guarantees one instance, and it is what clears a
+leaked one; the registry above only makes the NEXT leak harmless.
+
