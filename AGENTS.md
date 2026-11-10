@@ -216,13 +216,20 @@ digest `1d2955327e…` is byte-identical to `dist/win-x64/AgentsNotch.exe`. Its 
 `INTERNALS.md` Round 14 (the probe storm and heap death) and Round 15 (teammates folded into their lead).
 The published host is the pre-guard code, so it has the trap in §5.7.
 
-**0.2.1 is prepared, NOT published.** A host-only release: one writer per `state.json` and no frozen
-`working` rows (§5.7, `INTERNALS.md` Round 16). The entry moved to `lib/host-0.2.1.js` — a new file name,
-so an in-app upgrade imports fresh code instead of the cached module (§5.1) — `host-0.2.0.js` is kept as
-the rollback copy, and the package/window versions moved to 0.2.1 together so they cannot drift. 77 tests
-pass. What remains is the human half: rebuild the window (`tools/publish.ps1`), create the `v0.2.1`
-release with its `.exe` + `.sha256`, and `npm publish` with the 2FA approval. `tools/publish-release.ps1 -DryRun`
-prints every step.
+**0.2.1 is PUBLISHED** (2026-11-10, all three artefacts checked against each other): npm `latest` is
+`0.2.1` (`gitHead 8af4414`, `main: ./lib/host-0.2.1.js`, one `exports` block — read out of the published
+tarball) and the GitHub release `v0.2.1` carries `AgentsNotch.exe` (68,293,306 bytes, digest
+`ccfbbc2defc3…`, matching `dist/win-x64/`) plus its `.sha256`; the download URL answers 200. Host-only
+change: one writer per `state.json` and no frozen `working` rows (§5.7, `INTERNALS.md` Round 16). The
+entry moved to `lib/host-0.2.1.js` — a new file name, so an in-app upgrade imports fresh code instead of
+the cached module (§5.1) — `host-0.2.0.js` stays as the rollback copy, and the package/window versions
+moved together. 77 tests pass.
+
+**The 0.2.0 → 0.2.1 publish cost a detour worth remembering:** two `npm publish --access public` runs
+BEFORE `npm login` each answered `E404 Not Found - PUT …/dsh-agents-notch`, which is exactly the dead-token
+signature `docs/PUBLISHING.md` §4 documents. The post-login run answered `PUT 202` ("being processed"), and
+`npm view … @0.2.1` still 404'd for ~90 s afterwards — the packument with `Cache-Control: no-cache` is what
+shows the truth, so do not re-publish on a fresh 404.
 
 Verified before that, in 0.1.x: 65 tests; the host fetching its own window from the release (hash checked);
 `install-window.ps1` from a URL; both plugin install paths (registry and local link); the settings route
