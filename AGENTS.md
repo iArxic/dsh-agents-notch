@@ -83,6 +83,10 @@ Live work on the machine:
 # install/uninstall the bundle live (the app's own manager; the dsh CLI cannot write this profile)
 #   plugin_manager install_bundle  target: <this repo's folder>
 #   plugin_manager remove_bundle   target: dsh-agents-notch
+# A VERSION CHANGE needs remove_bundle FIRST: install_bundle <name>@<new version> answers
+# {"error":{"code":"already-installed"}} and changes nothing. Done in that order on 2026-11-10
+# (0.2.0 -> 0.2.1) the old instance was disposed properly — one writer, no zombie — unlike the
+# reinstall-over-existing that leaked one and caused §5.7.
 Get-Content $env:USERPROFILE\.dsh\state\agents-notch\host-report.jsonl -Tail 8   # one line per event
 Invoke-WebRequest http://127.0.0.1:<webPort>/agents-notch/state                  # the published payload
 Invoke-WebRequest http://127.0.0.1:<webPort>/agents-notch/settings               # the pane's door
@@ -224,6 +228,12 @@ change: one writer per `state.json` and no frozen `working` rows (§5.7, `INTERN
 entry moved to `lib/host-0.2.1.js` — a new file name, so an in-app upgrade imports fresh code instead of
 the cached module (§5.1) — `host-0.2.0.js` stays as the rollback copy, and the package/window versions
 moved together. 77 tests pass.
+
+**This machine is on 0.2.1** (2026-11-10 21:15): the profile's installed `main` is
+`./lib/host-0.2.1.js`, its file hashes to the published tarball's copy (`14c6b0ea…`), the host
+re-fetched its window from `v0.2.1` on first spawn (`window-fetched … bytes 68293306, verified:
+true`) and one writer publishes — 120 consecutive samples, every one `schema 5`. A host-only release
+still exercises the fetch path, which is what §4 says the asset is for.
 
 **The 0.2.0 → 0.2.1 publish cost a detour worth remembering:** two `npm publish --access public` runs
 BEFORE `npm login` each answered `E404 Not Found - PUT …/dsh-agents-notch`, which is exactly the dead-token
